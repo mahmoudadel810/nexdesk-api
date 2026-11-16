@@ -1,4 +1,5 @@
 using NexDesk.Domain.Common;
+using NexDesk.Domain.Sla;
 
 namespace NexDesk.Domain.Tickets;
 
@@ -45,6 +46,9 @@ public sealed class Ticket : AuditableEntity, ITenantOwned, ISoftDeletable
     private readonly List<TicketMessage> _messages = [];
     private readonly List<TicketEvent> _events = [];
     private readonly List<TicketWatcher> _watchers = [];
+
+    /// <summary>When the ticket was opened, known before the audit timestamp is written on first save.</summary>
+    private DateTimeOffset _openedAt;
 
     private Ticket()
     {
@@ -93,6 +97,36 @@ public sealed class Ticket : AuditableEntity, ITenantOwned, ISoftDeletable
 
     public Guid? DeletedBy { get; private set; }
 
+    /// <summary>Deadline for the first public reply by staff.</summary>
+    public DateTimeOffset? FirstResponseDueAt { get; private set; }
+
+    /// <summary>Deadline for solving the ticket. Null while the clock is paused or no policy applies.</summary>
+    public DateTimeOffset? ResolutionDueAt { get; private set; }
+
+    public DateTimeOffset? FirstResponseBreachedAt { get; private set; }
+
+    public DateTimeOffset? ResolutionBreachedAt { get; private set; }
+
+    public DateTimeOffset? FirstResponseWarnedAt { get; private set; }
+
+    public DateTimeOffset? ResolutionWarnedAt { get; private set; }
+
+    /// <summary>Working minutes left on the resolution clock, kept while the ticket waits on someone else.</summary>
+    public int? ResolutionRemainingMinutes { get; private set; }
+
+    /// <summary>The targets the current deadlines were calculated from.</summary>
+    public int? SlaFirstResponseMinutes { get; private set; }
+
+    public int? SlaResolutionMinutes { get; private set; }
+
+    /// <summary>Set when a deadline was missed, so the ticket stands out until it is closed.</summary>
+    public bool IsEscalated { get; private set; }
+
+    public bool IsSlaPaused => ResolutionRemainingMinutes is not null;
+
+    /// <summary>The resolution clock only runs while the ticket is waiting on the support team.</summary>
+    private bool SlaClockRuns => Status is TicketStatus.New or TicketStatus.Open;
+
     public IReadOnlyCollection<TicketMessage> Messages => _messages;
 
     public IReadOnlyCollection<TicketEvent> Events => _events;
@@ -124,6 +158,7 @@ public sealed class Ticket : AuditableEntity, ITenantOwned, ISoftDeletable
             RequesterId = requesterId,
             Tags = NormalizeTags(tags),
             LastActivityAt = now,
+            _openedAt = now,
         };
 
         // The description is the first message; a customer wrote it even when an agent typed it in.
@@ -341,6 +376,143 @@ public sealed class Ticket : AuditableEntity, ITenantOwned, ISoftDeletable
         return message;
     }
 
+    /// <summary>
+    /// Brings the SLA deadlines in line with the ticket's priority and status. Called before every save,
+    /// so it must be safe to run repeatedly.
+    /// </summary>
+    public void SyncSla(SlaPolicy? policy, BusinessCalendar calendar, DateTimeOffset now)
+    {
+        if (IsClosed)
+        {
+            return;
+        }
+
+        if (policy is null)
+        {
+            FirstResponseDueAt = FirstResponseBreachedAt is null ? null : FirstResponseDueAt;
+            ResolutionDueAt = ResolutionBreachedAt is null ? null : ResolutionDueAt;
+            ResolutionRemainingMinutes = null;
+            SlaFirstResponseMinutes = null;
+            SlaResolutionMinutes = null;
+            return;
+        }
+
+        if (SlaFirstResponseMinutes != policy.FirstResponseMinutes)
+        {
+            SlaFirstResponseMinutes = policy.FirstResponseMinutes;
+            if (FirstRespondedAt is null && FirstResponseBreachedAt is null)
+            {
+                var opened = CreatedAt != default ? CreatedAt : _openedAt != default ? _openedAt : now;
+                FirstResponseDueAt = calendar.AddBusinessMinutes(opened, policy.FirstResponseMinutes);
+                FirstResponseWarnedAt = null;
+            }
+        }
+
+        if (SlaResolutionMinutes != policy.ResolutionMinutes)
+        {
+            // Time already spent on the ticket still counts against the new target.
+            var left = ResolutionRemainingMinutes
+                ?? (ResolutionDueAt is { } due ? calendar.BusinessMinutesBetween(now, due) : 0);
+            var spent = SlaResolutionMinutes is { } previousTarget ? Math.Max(0, previousTarget - left) : 0;
+            var remaining = Math.Max(0, policy.ResolutionMinutes - spent);
+            SlaResolutionMinutes = policy.ResolutionMinutes;
+            if (ResolutionBreachedAt is null)
+            {
+                if (IsSlaPaused)
+                {
+                    ResolutionRemainingMinutes = remaining;
+                }
+                else
+                {
+                    ResolutionDueAt = calendar.AddBusinessMinutes(now, remaining);
+                    ResolutionWarnedAt = null;
+                }
+            }
+        }
+
+        if (SlaClockRuns && ResolutionRemainingMinutes is { } paused)
+        {
+            ResolutionDueAt = calendar.AddBusinessMinutes(now, paused);
+            ResolutionRemainingMinutes = null;
+        }
+        else if (!SlaClockRuns && !IsSlaPaused && ResolutionBreachedAt is null && ResolutionDueAt is { } deadline)
+        {
+            ResolutionRemainingMinutes = calendar.BusinessMinutesBetween(now, deadline);
+            ResolutionDueAt = null;
+        }
+    }
+
+    /// <summary>Records a missed deadline once. Returns the breach to store, or null if nothing is overdue.</summary>
+    public SlaBreach? RecordBreachIfOverdue(SlaMetric metric, DateTimeOffset now)
+    {
+        if (IsClosed)
+        {
+            return null;
+        }
+
+        if (metric == SlaMetric.FirstResponse)
+        {
+            if (FirstRespondedAt is not null || FirstResponseBreachedAt is not null
+                || FirstResponseDueAt is not { } due || due > now)
+            {
+                return null;
+            }
+
+            FirstResponseBreachedAt = now;
+            return Breach(metric, due, now);
+        }
+
+        if (ResolutionBreachedAt is not null || ResolutionDueAt is not { } deadline || deadline > now)
+        {
+            return null;
+        }
+
+        ResolutionBreachedAt = now;
+        return Breach(metric, deadline, now);
+    }
+
+    /// <summary>Flags a deadline as close once. Returns true the first time it falls inside the warning window.</summary>
+    public bool WarnIfApproaching(SlaMetric metric, DateTimeOffset now)
+    {
+        if (IsClosed)
+        {
+            return false;
+        }
+
+        var (due, target, warned, breached) = metric == SlaMetric.FirstResponse
+            ? (FirstRespondedAt is null ? FirstResponseDueAt : null, SlaFirstResponseMinutes, FirstResponseWarnedAt, FirstResponseBreachedAt)
+            : (ResolutionDueAt, SlaResolutionMinutes, ResolutionWarnedAt, ResolutionBreachedAt);
+        if (due is not { } deadline || target is not { } minutes || warned is not null || breached is not null
+            || deadline <= now || deadline - now > WarningWindow(minutes))
+        {
+            return false;
+        }
+
+        if (metric == SlaMetric.FirstResponse)
+        {
+            FirstResponseWarnedAt = now;
+        }
+        else
+        {
+            ResolutionWarnedAt = now;
+        }
+
+        Raise(new TicketSlaApproaching(Id, metric, deadline));
+        return true;
+    }
+
+    /// <summary>A fifth of the target, but never less than five minutes or more than four hours.</summary>
+    public static TimeSpan WarningWindow(int targetMinutes) =>
+        TimeSpan.FromMinutes(Math.Clamp(targetMinutes / 5, 5, 240));
+
+    private SlaBreach Breach(SlaMetric metric, DateTimeOffset due, DateTimeOffset now)
+    {
+        IsEscalated = true;
+        _events.Add(TicketEvent.Create(Id, TicketEventType.SlaBreached, Actor.System, null, metric.ToString(), now));
+        Raise(new TicketSlaBreached(Id, metric));
+        return SlaBreach.Create(Id, metric, due, now);
+    }
+
     /// <summary>Adds a watcher. The watchers collection must be loaded to avoid duplicates.</summary>
     public bool Watch(Guid userId)
     {
@@ -387,3 +559,7 @@ public sealed record TicketCreated(Guid TicketId) : IDomainEvent;
 public sealed record TicketChanged(Guid TicketId) : IDomainEvent;
 
 public sealed record TicketMessageAdded(Guid TicketId, Guid MessageId, Actor Author, bool IsInternal) : IDomainEvent;
+
+public sealed record TicketSlaApproaching(Guid TicketId, SlaMetric Metric, DateTimeOffset DueAt) : IDomainEvent;
+
+public sealed record TicketSlaBreached(Guid TicketId, SlaMetric Metric) : IDomainEvent;

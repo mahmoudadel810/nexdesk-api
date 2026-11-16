@@ -331,6 +331,7 @@ public sealed class Ticket : AuditableEntity, ITenantOwned, ISoftDeletable
         if (assigneeId is { } id)
         {
             Watch(id);
+            Raise(new TicketAssigned(Id, id, actor));
         }
     }
 
@@ -559,6 +560,8 @@ public sealed record TicketCreated(Guid TicketId) : IDomainEvent;
 public sealed record TicketChanged(Guid TicketId) : IDomainEvent;
 
 public sealed record TicketMessageAdded(Guid TicketId, Guid MessageId, Actor Author, bool IsInternal) : IDomainEvent;
+
+public sealed record TicketAssigned(Guid TicketId, Guid AssigneeId, Actor AssignedBy) : IDomainEvent;
 
 public sealed record TicketSlaApproaching(Guid TicketId, SlaMetric Metric, DateTimeOffset DueAt) : IDomainEvent;
 

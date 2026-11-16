@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using NexDesk.Domain.Identity;
+using NexDesk.Domain.Notifications;
 using NexDesk.Domain.Sla;
 using NexDesk.Domain.Teams;
 using NexDesk.Domain.Tenants;
@@ -30,6 +31,31 @@ internal sealed class TeamMemberConfiguration : IEntityTypeConfiguration<TeamMem
         builder.HasKey(m => new { m.TeamId, m.UserId });
         builder.HasIndex(m => m.UserId);
         builder.HasOne<User>().WithMany().HasForeignKey(m => m.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class NotificationConfiguration : IEntityTypeConfiguration<Notification>
+{
+    public void Configure(EntityTypeBuilder<Notification> builder)
+    {
+        builder.ToTable("notifications");
+        builder.Property(n => n.Id).ValueGeneratedNever();
+        builder.Property(n => n.TicketSubject).HasMaxLength(NexDesk.Domain.Tickets.Ticket.SubjectMaxLength);
+        builder.Property(n => n.ActorName).HasMaxLength(User.FullNameMaxLength);
+        builder.Property(n => n.Preview).HasMaxLength(Notification.PreviewMaxLength);
+        builder.HasIndex(n => new { n.UserId, n.ReadAt, n.CreatedAt });
+        builder.HasOne<User>().WithMany().HasForeignKey(n => n.UserId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<NexDesk.Domain.Tickets.Ticket>().WithMany().HasForeignKey(n => n.TicketId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class NotificationPreferenceConfiguration : IEntityTypeConfiguration<NotificationPreference>
+{
+    public void Configure(EntityTypeBuilder<NotificationPreference> builder)
+    {
+        builder.ToTable("notification_preferences");
+        builder.HasKey(p => new { p.UserId, p.Type });
+        builder.HasOne<User>().WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);
     }
 }
 

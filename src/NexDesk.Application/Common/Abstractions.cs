@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using NexDesk.Domain.Common;
 using NexDesk.Domain.Customers;
 using NexDesk.Domain.Identity;
+using NexDesk.Domain.Notifications;
 using NexDesk.Domain.Sla;
 using NexDesk.Domain.Teams;
 using NexDesk.Domain.Tenants;
@@ -48,6 +49,10 @@ public interface IAppDbContext
     DbSet<Holiday> Holidays { get; }
 
     DbSet<SlaBreach> SlaBreaches { get; }
+
+    DbSet<Notification> Notifications { get; }
+
+    DbSet<NotificationPreference> NotificationPreferences { get; }
 
     /// <summary>Forgets every tracked change, so an operation can be retried from fresh data.</summary>
     void DiscardChanges();
@@ -100,6 +105,16 @@ public interface IDomainEventHandler<in TEvent>
 public interface ITicketSaveHook
 {
     Task BeforeSaveAsync(IReadOnlyCollection<Ticket> tickets, CancellationToken cancellationToken);
+}
+
+/// <summary>Pushes live updates to connected browsers.</summary>
+public interface IRealtimeNotifier
+{
+    /// <summary>Tells every staff member of a tenant that a ticket appeared or changed.</summary>
+    Task TicketChangedAsync(Guid tenantId, Guid ticketId, string change, CancellationToken cancellationToken);
+
+    /// <summary>Delivers a notification to one user's open sessions.</summary>
+    Task NotificationAsync(Guid userId, object notification, CancellationToken cancellationToken);
 }
 
 public interface ITicketSearch

@@ -5,6 +5,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\NexDesk.Api\NexDesk.Api.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
     <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

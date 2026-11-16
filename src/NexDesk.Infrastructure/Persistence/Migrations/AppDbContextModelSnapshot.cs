@@ -420,6 +420,135 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                     b.ToTable("business_hours", (string)null);
                 });
 
+            modelBuilder.Entity("NexDesk.Domain.Sla.Holiday", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_holidays");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_holidays_tenant_id");
+
+                    b.HasIndex("TenantId", "Date")
+                        .IsUnique()
+                        .HasDatabaseName("ix_holidays_tenant_id_date");
+
+                    b.ToTable("holidays", (string)null);
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Sla.SlaBreach", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("BreachedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("breached_at");
+
+                    b.Property<DateTimeOffset>("DueAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("due_at");
+
+                    b.Property<string>("Metric")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("metric");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<Guid>("TicketId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ticket_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_sla_breaches");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_sla_breaches_tenant_id");
+
+                    b.HasIndex("TenantId", "BreachedAt")
+                        .HasDatabaseName("ix_sla_breaches_tenant_id_breached_at");
+
+                    b.HasIndex("TicketId", "Metric")
+                        .IsUnique()
+                        .HasDatabaseName("ix_sla_breaches_ticket_id_metric");
+
+                    b.ToTable("sla_breaches", (string)null);
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Sla.SlaPolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<int>("FirstResponseMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("first_response_minutes");
+
+                    b.Property<int>("Priority")
+                        .HasMaxLength(32)
+                        .HasColumnType("integer")
+                        .HasColumnName("priority");
+
+                    b.Property<int>("ResolutionMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("resolution_minutes");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_sla_policies");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_sla_policies_tenant_id");
+
+                    b.HasIndex("TenantId", "Priority")
+                        .IsUnique()
+                        .HasDatabaseName("ix_sla_policies_tenant_id_priority");
+
+                    b.ToTable("sla_policies", (string)null);
+                });
+
             modelBuilder.Entity("NexDesk.Domain.Teams.Team", b =>
                 {
                     b.Property<Guid>("Id")
@@ -810,6 +939,22 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("first_responded_at");
 
+                    b.Property<DateTimeOffset?>("FirstResponseBreachedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("first_response_breached_at");
+
+                    b.Property<DateTimeOffset?>("FirstResponseDueAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("first_response_due_at");
+
+                    b.Property<DateTimeOffset?>("FirstResponseWarnedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("first_response_warned_at");
+
+                    b.Property<bool>("IsEscalated")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_escalated");
+
                     b.Property<DateTimeOffset>("LastActivityAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_activity_at");
@@ -831,11 +976,35 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("requester_id");
 
+                    b.Property<DateTimeOffset?>("ResolutionBreachedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resolution_breached_at");
+
+                    b.Property<DateTimeOffset?>("ResolutionDueAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resolution_due_at");
+
+                    b.Property<int?>("ResolutionRemainingMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("resolution_remaining_minutes");
+
+                    b.Property<DateTimeOffset?>("ResolutionWarnedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resolution_warned_at");
+
                     b.Property<NpgsqlTsVector>("SearchVector")
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("tsvector")
                         .HasColumnName("search_vector")
                         .HasComputedColumnSql("to_tsvector('simple', subject)", true);
+
+                    b.Property<int?>("SlaFirstResponseMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("sla_first_response_minutes");
+
+                    b.Property<int?>("SlaResolutionMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("sla_resolution_minutes");
 
                     b.Property<DateTimeOffset?>("SolvedAt")
                         .HasColumnType("timestamp with time zone")
@@ -917,6 +1086,9 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                     b.HasIndex("TenantId", "AssigneeId")
                         .HasDatabaseName("ix_tickets_tenant_id_assignee_id");
 
+                    b.HasIndex("TenantId", "FirstResponseDueAt")
+                        .HasDatabaseName("ix_tickets_tenant_id_first_response_due_at");
+
                     b.HasIndex("TenantId", "LastActivityAt")
                         .HasDatabaseName("ix_tickets_tenant_id_last_activity_at");
 
@@ -926,6 +1098,9 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("TenantId", "RequesterId")
                         .HasDatabaseName("ix_tickets_tenant_id_requester_id");
+
+                    b.HasIndex("TenantId", "ResolutionDueAt")
+                        .HasDatabaseName("ix_tickets_tenant_id_resolution_due_at");
 
                     b.HasIndex("TenantId", "Status")
                         .HasDatabaseName("ix_tickets_tenant_id_status");
@@ -1141,6 +1316,36 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_business_hours_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Sla.Holiday", b =>
+                {
+                    b.HasOne("NexDesk.Domain.Tenants.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_holidays_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Sla.SlaBreach", b =>
+                {
+                    b.HasOne("NexDesk.Domain.Tickets.Ticket", null)
+                        .WithMany()
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_sla_breaches_tickets_ticket_id");
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Sla.SlaPolicy", b =>
+                {
+                    b.HasOne("NexDesk.Domain.Tenants.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_sla_policies_tenants_tenant_id");
                 });
 
             modelBuilder.Entity("NexDesk.Domain.Teams.Team", b =>

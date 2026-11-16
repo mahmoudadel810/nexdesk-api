@@ -7,6 +7,7 @@ using NexDesk.Application.Common;
 using NexDesk.Infrastructure.Email;
 using NexDesk.Infrastructure.Identity;
 using NexDesk.Infrastructure.Persistence;
+using NexDesk.Infrastructure.Sla;
 using NexDesk.Infrastructure.Tenancy;
 using NexDesk.Infrastructure.Tickets;
 
@@ -66,6 +67,11 @@ public static class DependencyInjection
                 storage => storage.UseNpgsqlConnection(connectionString),
                 new PostgreSqlStorageOptions { QueuePollInterval = TimeSpan.FromSeconds(2) }));
         services.AddHangfireServer(server => server.WorkerCount = 4);
+        services.AddScoped<SlaSweepJob>();
+        if (configuration.GetValue("Jobs:RecurringEnabled", true))
+        {
+            services.AddHostedService<RecurringJobRegistrar>();
+        }
 
         return services;
     }

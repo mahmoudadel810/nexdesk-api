@@ -33,6 +33,42 @@ internal sealed class TeamMemberConfiguration : IEntityTypeConfiguration<TeamMem
     }
 }
 
+internal sealed class SlaPolicyConfiguration : IEntityTypeConfiguration<SlaPolicy>
+{
+    public void Configure(EntityTypeBuilder<SlaPolicy> builder)
+    {
+        builder.ToTable("sla_policies");
+        builder.Property(p => p.Id).ValueGeneratedNever();
+        builder.Property(p => p.Priority).HasConversion<int>();
+        builder.HasIndex(p => new { p.TenantId, p.Priority }).IsUnique();
+        builder.HasOne<Tenant>().WithMany().HasForeignKey(p => p.TenantId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class HolidayConfiguration : IEntityTypeConfiguration<Holiday>
+{
+    public void Configure(EntityTypeBuilder<Holiday> builder)
+    {
+        builder.ToTable("holidays");
+        builder.Property(h => h.Id).ValueGeneratedNever();
+        builder.Property(h => h.Name).HasMaxLength(Holiday.NameMaxLength);
+        builder.HasIndex(h => new { h.TenantId, h.Date }).IsUnique();
+        builder.HasOne<Tenant>().WithMany().HasForeignKey(h => h.TenantId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class SlaBreachConfiguration : IEntityTypeConfiguration<SlaBreach>
+{
+    public void Configure(EntityTypeBuilder<SlaBreach> builder)
+    {
+        builder.ToTable("sla_breaches");
+        builder.Property(b => b.Id).ValueGeneratedNever();
+        builder.HasIndex(b => new { b.TenantId, b.BreachedAt });
+        builder.HasIndex(b => new { b.TicketId, b.Metric }).IsUnique();
+        builder.HasOne<NexDesk.Domain.Tickets.Ticket>().WithMany().HasForeignKey(b => b.TicketId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
 internal sealed class BusinessHoursDayConfiguration : IEntityTypeConfiguration<BusinessHoursDay>
 {
     public void Configure(EntityTypeBuilder<BusinessHoursDay> builder)

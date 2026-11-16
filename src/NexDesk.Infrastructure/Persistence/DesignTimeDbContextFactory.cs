@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.Extensions.DependencyInjection;
 using NexDesk.Application.Common;
 using NexDesk.Domain.Common;
 using NexDesk.Infrastructure.Tickets;
@@ -15,7 +16,13 @@ internal sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<A
             .UseNpgsql("Host=localhost;Database=nexdesk_design")
             .UseSnakeCaseNamingConvention()
             .Options;
-        return new AppDbContext(options, new NoContext(), new NoContext(), TimeProvider.System, new NoContext());
+        return new AppDbContext(
+            options,
+            new NoContext(),
+            new NoContext(),
+            TimeProvider.System,
+            new NoContext(),
+            new ServiceCollection().BuildServiceProvider());
     }
 
     private sealed class NoContext : ITenantContext, ICurrentUser, IDomainEventDispatcher

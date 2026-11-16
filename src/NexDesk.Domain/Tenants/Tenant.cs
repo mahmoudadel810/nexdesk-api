@@ -35,6 +35,8 @@ public sealed partial class Tenant : AuditableEntity
 
     public string DefaultLanguage { get; private set; } = "en";
 
+    public DateTimeOffset? OnboardingCompletedAt { get; private set; }
+
     public static Tenant Create(string name, string slug, string timezone, string defaultLanguage) => new()
     {
         Name = name.Trim(),
@@ -72,6 +74,10 @@ public sealed partial class Tenant : AuditableEntity
 
         return IsValidSlug(slug) ? slug : string.Empty;
     }
+
+    public void SetTimezone(string timezone) => Timezone = timezone;
+
+    public void CompleteOnboarding(DateTimeOffset now) => OnboardingCompletedAt ??= now;
 
     public void Suspend() => Status = TenantStatus.Suspended;
 

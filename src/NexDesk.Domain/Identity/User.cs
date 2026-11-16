@@ -2,6 +2,13 @@ using NexDesk.Domain.Common;
 
 namespace NexDesk.Domain.Identity;
 
+public enum Availability
+{
+    Online,
+    Away,
+    Offline,
+}
+
 public sealed class User : AuditableEntity
 {
     public const int FullNameMaxLength = 100;
@@ -28,6 +35,8 @@ public sealed class User : AuditableEntity
     public bool IsActive { get; private set; }
 
     public string Language { get; private set; } = "en";
+
+    public Availability Availability { get; private set; } = Availability.Offline;
 
     public DateTimeOffset? EmailVerifiedAt { get; private set; }
 
@@ -74,6 +83,36 @@ public sealed class User : AuditableEntity
         FailedLoginCount = 0;
         LockedUntil = null;
     }
+
+    public void UpdateProfile(string fullName, string language)
+    {
+        FullName = fullName.Trim();
+        Language = language;
+    }
+
+    public void SetAvailability(Availability availability) => Availability = availability;
+
+    /// <summary>Changes the role and invalidates access tokens that still carry the old permissions.</summary>
+    public void ChangeRole(Role role)
+    {
+        if (Role != role)
+        {
+            Role = role;
+            SecurityVersion++;
+        }
+    }
+
+    public void Deactivate()
+    {
+        if (IsActive)
+        {
+            IsActive = false;
+            Availability = Availability.Offline;
+            SecurityVersion++;
+        }
+    }
+
+    public void Reactivate() => IsActive = true;
 
     public void MarkEmailVerified(DateTimeOffset now) => EmailVerifiedAt ??= now;
 

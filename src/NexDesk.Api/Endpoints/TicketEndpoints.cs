@@ -84,6 +84,7 @@ public sealed record ListTicketsRequest(
     string? Tag,
     string? Search,
     string? Sort,
+    TicketSlaFilter? Sla,
     int Page = 1,
     int PageSize = Paging.DefaultPageSize);
 
@@ -130,13 +131,14 @@ public static class TicketEndpoints
                     request.Search,
                     request.Sort,
                     request.Page,
-                    request.PageSize),
+                    request.PageSize,
+                    request.Sla),
                 ct)).ToOk())
             .RequirePermission(Permissions.TicketsView)
             .WithName("ListTickets")
             .WithSummary("Lists tickets. Repeat status or priority to match several values; search looks in subjects, "
-                + "messages, requesters and ticket numbers. Sort by lastActivityAt, createdAt, number or priority; "
-                + "prefix with - to reverse.")
+                + "messages, requesters and ticket numbers; sla keeps tickets that breached or are at risk. "
+                + "Sort by lastActivityAt, createdAt, number, priority or due; prefix with - to reverse.")
             .Produces<PagedResult<TicketListItem>>()
             .ProducesValidationProblem();
 

@@ -81,6 +81,12 @@ public static class OpenApiSetup
             "Thanks for the report. We fixed the download link, could you try again?",
             IsInternal: false,
             SetStatus: TicketStatus.Pending),
+        [typeof(UpdateSlaPoliciesRequest)] = new UpdateSlaPoliciesRequest(
+        [
+            new SlaPolicyDto(TicketPriority.Urgent, 30, 240),
+            new SlaPolicyDto(TicketPriority.High, 60, 480),
+        ]),
+        [typeof(AddHolidayRequest)] = new AddHolidayRequest(new DateOnly(2027, 1, 1), "New Year's Day"),
     };
 
     public static IServiceCollection AddNexDeskOpenApi(this IServiceCollection services) =>

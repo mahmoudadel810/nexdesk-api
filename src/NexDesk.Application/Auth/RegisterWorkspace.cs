@@ -1,8 +1,8 @@
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using NexDesk.Application.Common;
-using NexDesk.Domain.Identity;
 using NexDesk.Application.Tenants;
+using NexDesk.Domain.Identity;
 using NexDesk.Domain.Tenants;
 
 namespace NexDesk.Application.Auth;

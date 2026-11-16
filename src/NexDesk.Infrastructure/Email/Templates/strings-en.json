@@ -1,0 +1,16 @@
+{
+  "verify-email": {
+    "subject": "Confirm your email address",
+    "heading": "Welcome to NexDesk, {name}",
+    "body": "Confirm your email address to finish setting up your workspace.",
+    "button": "Confirm email",
+    "footer": "This link expires in {hours} hours. If you did not create a NexDesk workspace, you can ignore this email."
+  },
+  "reset-password": {
+    "subject": "Reset your NexDesk password",
+    "heading": "Reset your password",
+    "body": "Hi {name}, we received a request to reset your password. Choose a new one with the button below.",
+    "button": "Choose a new password",
+    "footer": "This link expires in {minutes} minutes. If you did not ask for a reset, your password stays unchanged."
+  }
+}

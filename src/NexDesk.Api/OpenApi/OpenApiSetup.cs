@@ -5,6 +5,7 @@ using Microsoft.OpenApi;
 using NexDesk.Api.Endpoints;
 using NexDesk.Application.Sla;
 using NexDesk.Domain.Identity;
+using NexDesk.Domain.Tickets;
 
 namespace NexDesk.Api.OpenApi;
 
@@ -40,6 +41,23 @@ public static class OpenApiSetup
                     new TimeOnly(9, 0),
                     new TimeOnly(17, 0))),
             ]),
+        [typeof(CreateTicketRequest)] = new CreateTicketRequest(
+            "Cannot download my invoice",
+            "The download button on the billing page shows an error since this morning.",
+            RequesterId: null,
+            RequesterEmail: "casey@customer.example",
+            RequesterName: "Casey Customer",
+            TicketPriority.High,
+            TicketType.Incident,
+            Tags: ["billing", "invoice"]),
+        [typeof(UpdateTicketRequest)] = new UpdateTicketRequest(
+            Subject: null, TicketStatus.Pending, TicketPriority.Urgent, Type: null, Tags: ["billing", "escalated"]),
+        [typeof(AssignTicketRequest)] = new AssignTicketRequest(
+            Guid.Parse("0196b6c2-7c1e-7a53-9d55-3a5d1f0c8e21"), Guid.Parse("0196b6c2-9a40-7d11-8f3b-6c2e4d7a1b90")),
+        [typeof(AddMessageRequest)] = new AddMessageRequest(
+            "Thanks for the report. We fixed the download link, could you try again?",
+            IsInternal: false,
+            SetStatus: TicketStatus.Pending),
     };
 
     public static IServiceCollection AddNexDeskOpenApi(this IServiceCollection services) =>

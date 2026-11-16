@@ -51,4 +51,7 @@ public static class CurrentUserExtensions
 {
     public static Guid RequireUserId(this ICurrentUser currentUser) =>
         currentUser.UserId ?? throw new InvalidOperationException("This operation requires a signed-in user.");
+
+    public static NexDesk.Domain.Common.Actor AsActor(this ICurrentUser currentUser) =>
+        NexDesk.Domain.Common.Actor.Staff(currentUser.RequireUserId());
 }

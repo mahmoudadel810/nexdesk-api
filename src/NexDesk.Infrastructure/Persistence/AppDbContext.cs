@@ -3,10 +3,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using NexDesk.Application.Common;
 using NexDesk.Domain.Common;
+using NexDesk.Domain.Customers;
 using NexDesk.Domain.Identity;
 using NexDesk.Domain.Sla;
 using NexDesk.Domain.Teams;
 using NexDesk.Domain.Tenants;
+using NexDesk.Domain.Tickets;
+using NexDesk.Infrastructure.Tickets;
 
 namespace NexDesk.Infrastructure.Persistence;
 
@@ -14,9 +17,11 @@ public sealed class AppDbContext(
     DbContextOptions<AppDbContext> options,
     ITenantContext tenant,
     ICurrentUser currentUser,
-    TimeProvider clock) : DbContext(options), IAppDbContext
+    TimeProvider clock,
+    IDomainEventDispatcher domainEvents) : DbContext(options), IAppDbContext
 {
     public const string TenantFilter = "Tenant";
+    public const string SoftDeleteFilter = "SoftDelete";
 
     public DbSet<Tenant> Tenants => Set<Tenant>();
 
@@ -34,12 +39,27 @@ public sealed class AppDbContext(
 
     public DbSet<BusinessHoursDay> BusinessHours => Set<BusinessHoursDay>();
 
+    public DbSet<Customer> Customers => Set<Customer>();
+
+    public DbSet<Ticket> Tickets => Set<Ticket>();
+
+    public DbSet<TicketMessage> TicketMessages => Set<TicketMessage>();
+
+    public DbSet<TicketEvent> TicketEvents => Set<TicketEvent>();
+
+    public DbSet<TicketWatcher> TicketWatchers => Set<TicketWatcher>();
+
+    public DbSet<Attachment> Attachments => Set<Attachment>();
+
     private Guid? CurrentTenantId => tenant.TenantId;
 
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         ApplyTenantAndAudit();
-        return base.SaveChangesAsync(cancellationToken);
+        var raised = TakeDomainEvents();
+        var written = await base.SaveChangesAsync(cancellationToken);
+        await domainEvents.DispatchAsync(raised, cancellationToken);
+        return written;
     }
 
     public override int SaveChanges()
@@ -70,6 +90,24 @@ public sealed class AppDbContext(
             modelBuilder.Entity(entityType.ClrType).HasIndex(nameof(ITenantOwned.TenantId));
         }
 
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes()
+            .Where(type => typeof(ISoftDeletable).IsAssignableFrom(type.ClrType)))
+        {
+            var entity = Expression.Parameter(entityType.ClrType, "entity");
+            var notDeleted = Expression.Lambda(
+                Expression.Equal(
+                    Expression.Property(entity, nameof(ISoftDeletable.DeletedAt)),
+                    Expression.Constant(null, typeof(DateTimeOffset?))),
+                entity);
+            modelBuilder.Entity(entityType.ClrType).HasQueryFilter(SoftDeleteFilter, notDeleted);
+        }
+
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes()
+            .Where(type => typeof(Entity).IsAssignableFrom(type.ClrType)))
+        {
+            modelBuilder.Entity(entityType.ClrType).Ignore(nameof(Entity.DomainEvents));
+        }
+
         base.OnModelCreating(modelBuilder);
     }
 
@@ -89,6 +127,14 @@ public sealed class AppDbContext(
                 EnforceTenant(entry, owned);
             }
 
+            if (entry is { Entity: ISoftDeletable, State: EntityState.Deleted })
+            {
+                // The row stays; the soft-delete query filter hides it from now on.
+                entry.State = EntityState.Modified;
+                entry.Property(nameof(ISoftDeletable.DeletedAt)).CurrentValue = now;
+                entry.Property(nameof(ISoftDeletable.DeletedBy)).CurrentValue = currentUser.UserId;
+            }
+
             if (entry.Entity is IAuditable)
             {
                 if (entry.State == EntityState.Added)
@@ -103,6 +149,14 @@ public sealed class AppDbContext(
                 }
             }
         }
+    }
+
+    private List<IDomainEvent> TakeDomainEvents()
+    {
+        var entities = ChangeTracker.Entries<Entity>().Select(entry => entry.Entity).ToList();
+        var raised = entities.SelectMany(entity => entity.DomainEvents).ToList();
+        entities.ForEach(entity => entity.ClearDomainEvents());
+        return raised;
     }
 
     private void EnforceTenant(EntityEntry entry, ITenantOwned owned)

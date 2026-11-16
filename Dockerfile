@@ -17,6 +17,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/publish .
+RUN mkdir -p /var/lib/nexdesk/storage && chown -R $APP_UID /var/lib/nexdesk
 ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080
 USER $APP_UID

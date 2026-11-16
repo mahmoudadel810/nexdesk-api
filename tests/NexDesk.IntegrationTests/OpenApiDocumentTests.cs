@@ -37,7 +37,8 @@ public sealed class OpenApiDocumentTests(ApiFactory factory)
 
         var schemas = document.GetProperty("components").GetProperty("schemas");
         var bodiesWithoutExample = operations
-            .Where(o => o.Operation.TryGetProperty("requestBody", out _))
+            .Where(o => o.Operation.TryGetProperty("requestBody", out var body)
+                && body.GetProperty("content").TryGetProperty("application/json", out _))
             .Select(o => (o.Route, Schema: o.Operation.GetProperty("requestBody").GetProperty("content")
                 .GetProperty("application/json").GetProperty("schema")))
             .Where(body => !HasExample(body.Schema, schemas))

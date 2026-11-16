@@ -137,3 +137,53 @@ public static class TestJson
         Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
     };
 }
+
+public static class TestTickets
+{
+    public static CreateTicketRequest NewTicket(
+        string subject = "Cannot sign in",
+        string? requesterEmail = null,
+        NexDesk.Domain.Tickets.TicketPriority priority = NexDesk.Domain.Tickets.TicketPriority.Normal,
+        Guid? assigneeId = null,
+        Guid? teamId = null,
+        IReadOnlyCollection<string>? tags = null,
+        IReadOnlyCollection<Guid>? attachmentIds = null) => new(
+            subject,
+            "I get an error every time I try to sign in.",
+            RequesterId: null,
+            RequesterEmail: requesterEmail ?? TestWorkspaces.UniqueEmail("customer"),
+            RequesterName: "Casey Customer",
+            priority,
+            NexDesk.Domain.Tickets.TicketType.Incident,
+            assigneeId,
+            teamId,
+            tags,
+            attachmentIds);
+
+    public static async Task<NexDesk.Application.Tickets.TicketDetailDto> CreateTicketAsync(
+        this HttpClient client,
+        CreateTicketRequest? request = null)
+    {
+        var response = await client.PostAsJsonAsync("/api/v1/tickets", request ?? NewTicket(), TestJson.Options);
+        response.StatusCode.ShouldBe(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+        return (await response.Content.ReadFromJsonAsync<NexDesk.Application.Tickets.TicketDetailDto>(TestJson.Options))!;
+    }
+
+    public static async Task<NexDesk.Application.Tickets.AttachmentDto> UploadAsync(
+        this HttpClient client,
+        string fileName,
+        byte[] content,
+        string contentType = "text/plain")
+    {
+        var response = await client.PostAsync("/api/v1/attachments", FileForm(fileName, content, contentType));
+        response.StatusCode.ShouldBe(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+        return (await response.Content.ReadFromJsonAsync<NexDesk.Application.Tickets.AttachmentDto>(TestJson.Options))!;
+    }
+
+    public static MultipartFormDataContent FileForm(string fileName, byte[] content, string contentType = "text/plain")
+    {
+        var file = new ByteArrayContent(content);
+        file.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        return new MultipartFormDataContent { { file, "file", fileName } };
+    }
+}

@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using NexDesk.Application.Common;
 using NexDesk.Domain.Common;
 using NexDesk.Domain.Identity;
+using NexDesk.Domain.Sla;
+using NexDesk.Domain.Teams;
 using NexDesk.Domain.Tenants;
 
 namespace NexDesk.Infrastructure.Persistence;
@@ -23,6 +25,14 @@ public sealed class AppDbContext(
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     public DbSet<OneTimeToken> OneTimeTokens => Set<OneTimeToken>();
+
+    public DbSet<Invitation> Invitations => Set<Invitation>();
+
+    public DbSet<Team> Teams => Set<Team>();
+
+    public DbSet<TeamMember> TeamMembers => Set<TeamMember>();
+
+    public DbSet<BusinessHoursDay> BusinessHours => Set<BusinessHoursDay>();
 
     private Guid? CurrentTenantId => tenant.TenantId;
 

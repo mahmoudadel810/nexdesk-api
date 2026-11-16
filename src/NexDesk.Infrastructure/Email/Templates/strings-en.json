@@ -12,5 +12,12 @@
     "body": "Hi {name}, we received a request to reset your password. Choose a new one with the button below.",
     "button": "Choose a new password",
     "footer": "This link expires in {minutes} minutes. If you did not ask for a reset, your password stays unchanged."
+  },
+  "invitation": {
+    "subject": "{inviter} invited you to {workspace} on NexDesk",
+    "heading": "Join {workspace} on NexDesk",
+    "body": "{inviter} invited you to work on customer requests with the {workspace} team. Accept the invitation to choose your password and get started.",
+    "button": "Accept invitation",
+    "footer": "This invitation expires in {days} days. If you were not expecting it, you can ignore this email."
   }
 }

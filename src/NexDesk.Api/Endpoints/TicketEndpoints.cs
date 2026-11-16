@@ -18,18 +18,55 @@ public sealed record CreateTicketRequest(
     Guid? AssigneeId = null,
     Guid? TeamId = null,
     IReadOnlyCollection<string>? Tags = null,
-    IReadOnlyCollection<Guid>? AttachmentIds = null);
+    IReadOnlyCollection<Guid>? AttachmentIds = null,
+    IReadOnlyDictionary<string, string?>? CustomFields = null);
 
-/// <summary>Only the fields that are present are changed.</summary>
+/// <summary>
+/// Only the fields that are present are changed. Send the version you last read to be told, with a 409,
+/// when someone else changed the ticket in the meantime.
+/// </summary>
 public sealed record UpdateTicketRequest(
     string? Subject,
     TicketStatus? Status,
     TicketPriority? Priority,
     TicketType? Type,
-    IReadOnlyCollection<string>? Tags);
+    IReadOnlyCollection<string>? Tags,
+    IReadOnlyDictionary<string, string?>? CustomFields = null,
+    uint? Version = null);
 
 /// <summary>Both fields are applied as sent; null clears the assignee or the team.</summary>
-public sealed record AssignTicketRequest(Guid? AssigneeId, Guid? TeamId);
+public sealed record AssignTicketRequest(Guid? AssigneeId, Guid? TeamId, uint? Version = null);
+
+/// <summary>Applies the same changes to many tickets. Assignee and team are only touched when their flag is set.</summary>
+public sealed record BulkUpdateRequest(
+    IReadOnlyCollection<Guid> TicketIds,
+    TicketStatus? Status = null,
+    TicketPriority? Priority = null,
+    bool SetAssignee = false,
+    Guid? AssigneeId = null,
+    bool SetTeam = false,
+    Guid? TeamId = null,
+    IReadOnlyCollection<string>? AddTags = null,
+    IReadOnlyCollection<string>? RemoveTags = null);
+
+public sealed record MergeTicketRequest(Guid TargetTicketId);
+
+public sealed record CreateCustomFieldRequest(
+    string Key,
+    string Label,
+    CustomFieldType Type,
+    IReadOnlyCollection<string>? Options = null,
+    bool IsRequired = false,
+    int Position = 0);
+
+public sealed record UpdateCustomFieldRequest(
+    string Label,
+    IReadOnlyCollection<string>? Options = null,
+    bool IsRequired = false,
+    bool IsActive = true,
+    int Position = 0);
+
+public sealed record SaveViewRequest(string Name, bool IsShared, TicketViewFilter Filter);
 
 public sealed record AddMessageRequest(
     string Body,
@@ -45,6 +82,7 @@ public sealed record ListTicketsRequest(
     Guid? TeamId,
     Guid? RequesterId,
     string? Tag,
+    string? Search,
     string? Sort,
     int Page = 1,
     int PageSize = Paging.DefaultPageSize);
@@ -57,6 +95,8 @@ public static class TicketEndpoints
     {
         MapTickets(api.MapGroup("/tickets").WithTags("Tickets"));
         MapAttachments(api.MapGroup("/attachments").WithTags("Attachments"));
+        MapCustomFields(api.MapGroup("/custom-fields").WithTags("Custom fields"));
+        MapViews(api.MapGroup("/views").WithTags("Saved views"));
 
         api.MapGet("/customers", async (
             [AsParameters] ListCustomersRequest request,
@@ -87,14 +127,16 @@ public static class TicketEndpoints
                     request.TeamId,
                     request.RequesterId,
                     request.Tag,
+                    request.Search,
                     request.Sort,
                     request.Page,
                     request.PageSize),
                 ct)).ToOk())
             .RequirePermission(Permissions.TicketsView)
             .WithName("ListTickets")
-            .WithSummary("Lists tickets. Repeat status or priority to match several values. "
-                + "Sort by lastActivityAt, createdAt, number or priority; prefix with - to reverse.")
+            .WithSummary("Lists tickets. Repeat status or priority to match several values; search looks in subjects, "
+                + "messages, requesters and ticket numbers. Sort by lastActivityAt, createdAt, number or priority; "
+                + "prefix with - to reverse.")
             .Produces<PagedResult<TicketListItem>>()
             .ProducesValidationProblem();
 
@@ -114,7 +156,8 @@ public static class TicketEndpoints
                     request.AssigneeId,
                     request.TeamId,
                     request.Tags,
-                    request.AttachmentIds),
+                    request.AttachmentIds,
+                    request.CustomFields),
                 ct)).ToHttp(ticket => TypedResults.Created($"/api/v1/tickets/{ticket.Id}", ticket)))
             .RequirePermission(Permissions.TicketsCreate)
             .WithName("CreateTicket")
@@ -136,7 +179,15 @@ public static class TicketEndpoints
             ICommandHandler<UpdateTicketCommand, TicketDetailDto> handler,
             CancellationToken ct) =>
             (await handler.Handle(
-                new UpdateTicketCommand(id, request.Subject, request.Status, request.Priority, request.Type, request.Tags),
+                new UpdateTicketCommand(
+                    id,
+                    request.Subject,
+                    request.Status,
+                    request.Priority,
+                    request.Type,
+                    request.Tags,
+                    request.CustomFields,
+                    request.Version),
                 ct)).ToOk())
             .RequirePermission(Permissions.TicketsEdit)
             .WithName("UpdateTicket")
@@ -151,7 +202,8 @@ public static class TicketEndpoints
             AssignTicketRequest request,
             ICommandHandler<AssignTicketCommand, TicketDetailDto> handler,
             CancellationToken ct) =>
-            (await handler.Handle(new AssignTicketCommand(id, request.AssigneeId, request.TeamId), ct)).ToOk())
+            (await handler.Handle(new AssignTicketCommand(id, request.AssigneeId, request.TeamId, request.Version), ct))
+            .ToOk())
             .RequirePermission(Permissions.TicketsEdit)
             .WithName("AssignTicket")
             .WithSummary("Sets the assignee and team of a ticket. Send null to clear either one.")
@@ -208,6 +260,42 @@ public static class TicketEndpoints
             .Produces<TicketDetailDto>()
             .ProducesProblem(StatusCodes.Status404NotFound);
 
+        tickets.MapPost("/bulk", async (
+            BulkUpdateRequest request,
+            ICommandHandler<BulkUpdateTicketsCommand, BulkResult> handler,
+            CancellationToken ct) =>
+            (await handler.Handle(
+                new BulkUpdateTicketsCommand(
+                    request.TicketIds,
+                    request.Status,
+                    request.Priority,
+                    request.SetAssignee,
+                    request.AssigneeId,
+                    request.SetTeam,
+                    request.TeamId,
+                    request.AddTags,
+                    request.RemoveTags),
+                ct)).ToOk())
+            .RequirePermission(Permissions.TicketsEdit)
+            .WithName("BulkUpdateTickets")
+            .WithSummary("Changes status, priority, assignment or tags of up to 100 tickets and reports which ones failed.")
+            .Produces<BulkResult>()
+            .ProducesValidationProblem();
+
+        tickets.MapPost("/{id:guid}/merge", async (
+            Guid id,
+            MergeTicketRequest request,
+            ICommandHandler<MergeTicketCommand, TicketDetailDto> handler,
+            CancellationToken ct) =>
+            (await handler.Handle(new MergeTicketCommand(id, request.TargetTicketId), ct)).ToOk())
+            .RequirePermission(Permissions.TicketsEdit)
+            .WithName("MergeTicket")
+            .WithSummary("Merges a duplicate into another ticket: its conversation moves there and it is closed.")
+            .Produces<TicketDetailDto>()
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
         tickets.MapDelete("/{id:guid}", async (
             Guid id,
             ICommandHandler<DeleteTicketCommand, Success> handler,
@@ -216,6 +304,110 @@ public static class TicketEndpoints
             .RequirePermission(Permissions.TicketsDelete)
             .WithName("DeleteTicket")
             .WithSummary("Deletes a ticket. It disappears from every list but its number is never reused.")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+    }
+
+    private static void MapCustomFields(RouteGroupBuilder fields)
+    {
+        fields.MapGet("/", async (
+            IQueryHandler<ListCustomFieldsQuery, IReadOnlyList<CustomFieldDto>> handler,
+            CancellationToken ct) =>
+            (await handler.Handle(new ListCustomFieldsQuery(), ct)).ToOk())
+            .RequirePermission(Permissions.TicketsView)
+            .WithName("ListCustomFields")
+            .WithSummary("Lists the ticket fields this workspace has defined, in display order.")
+            .Produces<IReadOnlyList<CustomFieldDto>>();
+
+        fields.MapPost("/", async (
+            CreateCustomFieldRequest request,
+            ICommandHandler<CreateCustomFieldCommand, CustomFieldDto> handler,
+            CancellationToken ct) =>
+            (await handler.Handle(
+                new CreateCustomFieldCommand(
+                    request.Key, request.Label, request.Type, request.Options, request.IsRequired, request.Position),
+                ct)).ToHttp(field => TypedResults.Created((string?)null, field)))
+            .RequirePermission(Permissions.CustomFieldsManage)
+            .WithName("CreateCustomField")
+            .WithSummary("Defines a new ticket field. The key and type cannot be changed afterwards.")
+            .Produces<CustomFieldDto>(StatusCodes.Status201Created)
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        fields.MapPut("/{id:guid}", async (
+            Guid id,
+            UpdateCustomFieldRequest request,
+            ICommandHandler<UpdateCustomFieldCommand, CustomFieldDto> handler,
+            CancellationToken ct) =>
+            (await handler.Handle(
+                new UpdateCustomFieldCommand(
+                    id, request.Label, request.Options, request.IsRequired, request.IsActive, request.Position),
+                ct)).ToOk())
+            .RequirePermission(Permissions.CustomFieldsManage)
+            .WithName("UpdateCustomField")
+            .WithSummary("Changes the label, options, position or whether the field is required or active.")
+            .Produces<CustomFieldDto>()
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        fields.MapDelete("/{id:guid}", async (
+            Guid id,
+            ICommandHandler<DeleteCustomFieldCommand, Success> handler,
+            CancellationToken ct) =>
+            (await handler.Handle(new DeleteCustomFieldCommand(id), ct)).ToNoContent())
+            .RequirePermission(Permissions.CustomFieldsManage)
+            .WithName("DeleteCustomField")
+            .WithSummary("Removes a field definition. Values already stored on tickets are no longer shown.")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+    }
+
+    private static void MapViews(RouteGroupBuilder views)
+    {
+        views.MapGet("/", async (
+            IQueryHandler<ListSavedViewsQuery, IReadOnlyList<SavedViewDto>> handler,
+            CancellationToken ct) =>
+            (await handler.Handle(new ListSavedViewsQuery(), ct)).ToOk())
+            .RequirePermission(Permissions.TicketsView)
+            .WithName("ListSavedViews")
+            .WithSummary("Lists the signed-in user's own ticket views and the views shared with the workspace.")
+            .Produces<IReadOnlyList<SavedViewDto>>();
+
+        views.MapPost("/", async (
+            SaveViewRequest request,
+            ICommandHandler<CreateSavedViewCommand, SavedViewDto> handler,
+            CancellationToken ct) =>
+            (await handler.Handle(new CreateSavedViewCommand(request.Name, request.IsShared, request.Filter), ct))
+            .ToHttp(view => TypedResults.Created((string?)null, view)))
+            .RequirePermission(Permissions.TicketsView)
+            .WithName("CreateSavedView")
+            .WithSummary("Saves a ticket filter under a name. Sharing it with everyone needs an admin.")
+            .Produces<SavedViewDto>(StatusCodes.Status201Created)
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status403Forbidden);
+
+        views.MapPut("/{id:guid}", async (
+            Guid id,
+            SaveViewRequest request,
+            ICommandHandler<UpdateSavedViewCommand, SavedViewDto> handler,
+            CancellationToken ct) =>
+            (await handler.Handle(new UpdateSavedViewCommand(id, request.Name, request.IsShared, request.Filter), ct))
+            .ToOk())
+            .RequirePermission(Permissions.TicketsView)
+            .WithName("UpdateSavedView")
+            .WithSummary("Renames a view or replaces its filter.")
+            .Produces<SavedViewDto>()
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        views.MapDelete("/{id:guid}", async (
+            Guid id,
+            ICommandHandler<DeleteSavedViewCommand, Success> handler,
+            CancellationToken ct) =>
+            (await handler.Handle(new DeleteSavedViewCommand(id), ct)).ToNoContent())
+            .RequirePermission(Permissions.TicketsView)
+            .WithName("DeleteSavedView")
+            .WithSummary("Deletes a saved view.")
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status404NotFound);
     }

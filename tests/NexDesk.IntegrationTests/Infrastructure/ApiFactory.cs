@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NexDesk.Application.Common;
+using NexDesk.Domain.Tickets;
 using NexDesk.Infrastructure.Email;
 using Testcontainers.PostgreSql;
 
@@ -18,12 +19,21 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     public CapturedEmails Emails { get; } = new();
 
+    /// <summary>Ids of tickets whose creation event reached a domain event handler.</summary>
+    public ConcurrentBag<Guid> CreatedTicketEvents { get; } = [];
+
+    private readonly string _storageRoot = Path.Combine(Path.GetTempPath(), $"nexdesk-tests-{Guid.NewGuid():N}");
+
     public Task InitializeAsync() => _postgres.StartAsync();
 
     async Task IAsyncLifetime.DisposeAsync()
     {
         await base.DisposeAsync();
         await _postgres.DisposeAsync();
+        if (Directory.Exists(_storageRoot))
+        {
+            Directory.Delete(_storageRoot, recursive: true);
+        }
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -31,11 +41,15 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseEnvironment("Testing");
         builder.UseSetting("ConnectionStrings:Postgres", _postgres.GetConnectionString());
         builder.UseSetting("Jwt:SigningKey", "integration-tests-signing-key-0123456789abcdef");
+        builder.UseSetting("Storage:RootPath", _storageRoot);
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton(Emails);
             services.RemoveAll<IEmailDispatcher>();
             services.AddScoped<IEmailDispatcher, CapturingEmailDispatcher>();
+            services.AddSingleton(CreatedTicketEvents);
+            services.AddScoped<IDomainEventHandler<TicketCreated>, FailingTicketCreatedHandler>();
+            services.AddScoped<IDomainEventHandler<TicketCreated>, RecordingTicketCreatedHandler>();
         });
     }
 }
@@ -73,6 +87,22 @@ public sealed record CapturedEmail(EmailMessage Message, RenderedEmail Rendered)
 internal sealed class CapturingEmailDispatcher(CapturedEmails emails, EmailTemplateRenderer renderer) : IEmailDispatcher
 {
     public void Enqueue(EmailMessage message) => emails.Add(new CapturedEmail(message, renderer.Render(message)));
+}
+
+internal sealed class RecordingTicketCreatedHandler(ConcurrentBag<Guid> created) : IDomainEventHandler<TicketCreated>
+{
+    public Task Handle(TicketCreated domainEvent, CancellationToken cancellationToken)
+    {
+        created.Add(domainEvent.TicketId);
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>Proves that one broken handler neither fails the request nor stops the handlers after it.</summary>
+internal sealed class FailingTicketCreatedHandler : IDomainEventHandler<TicketCreated>
+{
+    public Task Handle(TicketCreated domainEvent, CancellationToken cancellationToken) =>
+        throw new InvalidOperationException("Simulated handler failure.");
 }
 
 [CollectionDefinition(Name)]

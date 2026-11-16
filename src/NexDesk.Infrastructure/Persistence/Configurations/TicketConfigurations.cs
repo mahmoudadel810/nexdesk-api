@@ -45,6 +45,9 @@ internal sealed class TicketConfiguration : IEntityTypeConfiguration<Ticket>
         builder.Property(t => t.Priority).HasConversion<int>();
         builder.Property(t => t.Tags).HasColumnType("text[]");
         builder.Ignore(t => t.IsClosed);
+        builder.Ignore(t => t.IsSlaPaused);
+        builder.HasIndex(t => new { t.TenantId, t.ResolutionDueAt });
+        builder.HasIndex(t => new { t.TenantId, t.FirstResponseDueAt });
 
         builder.Property(t => t.CustomFields)
             .HasColumnType("jsonb")

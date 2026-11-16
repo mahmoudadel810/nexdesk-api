@@ -8,5 +8,9 @@ namespace NexDesk.Application.Tenants;
 /// </summary>
 public sealed class TenantProvisioner(IAppDbContext db)
 {
-    public void AddDefaults() => db.BusinessHours.AddRange(BusinessHoursDay.DefaultWeek());
+    public void AddDefaults()
+    {
+        db.BusinessHours.AddRange(BusinessHoursDay.DefaultWeek());
+        db.SlaPolicies.AddRange(SlaPolicy.Defaults());
+    }
 }

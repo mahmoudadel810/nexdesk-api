@@ -50,6 +50,7 @@ public enum TicketEventType
     CustomFieldChanged,
     MergedInto,
     MergedFrom,
+    SlaBreached,
 }
 
 /// <summary>One entry of the activity timeline. Values are stored as display text so history survives renames.</summary>

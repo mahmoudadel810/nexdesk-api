@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using NexDesk.Api.Endpoints;
 
 namespace NexDesk.IntegrationTests.Infrastructure;
@@ -185,5 +186,31 @@ public static class TestTickets
         var file = new ByteArrayContent(content);
         file.Headers.ContentType = new MediaTypeHeaderValue(contentType);
         return new MultipartFormDataContent { { file, "file", fileName } };
+    }
+}
+
+public static class TestSla
+{
+    /// <summary>Runs the SLA sweep for one tenant as if the clock showed <paramref name="now"/>.</summary>
+    public static async Task<int> SweepSlaAsync(this ApiFactory factory, Guid tenantId, DateTimeOffset now)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        using var tenant = scope.ServiceProvider
+            .GetRequiredService<NexDesk.Application.Common.ITenantScopeFactory>().Begin(tenantId);
+        return await scope.ServiceProvider.GetRequiredService<NexDesk.Application.Sla.SlaEngine>()
+            .SweepAsync(now, CancellationToken.None);
+    }
+
+    /// <summary>Opens the workspace around the clock, so deadlines are plain clock time and tests stay deterministic.</summary>
+    public static async Task OpenAroundTheClockAsync(this HttpClient client)
+    {
+        var days = Enum.GetValues<DayOfWeek>()
+            .Select(day => new NexDesk.Application.Sla.BusinessDayDto(day, true, new TimeOnly(0, 0), new TimeOnly(23, 59, 59)))
+            .ToList();
+        var response = await client.PutAsJsonAsync(
+            "/api/v1/sla/business-hours",
+            new UpdateBusinessHoursRequest("UTC", days),
+            TestJson.Options);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 }

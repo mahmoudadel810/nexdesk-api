@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.Extensions.DependencyInjection;
 using NexDesk.Application.Common;
 using NexDesk.Domain.Common;
 using NexDesk.Domain.Customers;
@@ -18,7 +19,8 @@ public sealed class AppDbContext(
     ITenantContext tenant,
     ICurrentUser currentUser,
     TimeProvider clock,
-    IDomainEventDispatcher domainEvents) : DbContext(options), IAppDbContext
+    IDomainEventDispatcher domainEvents,
+    IServiceProvider services) : DbContext(options), IAppDbContext
 {
     public const string TenantFilter = "Tenant";
     public const string SoftDeleteFilter = "SoftDelete";
@@ -55,12 +57,31 @@ public sealed class AppDbContext(
 
     public DbSet<SavedView> SavedViews => Set<SavedView>();
 
+    public DbSet<SlaPolicy> SlaPolicies => Set<SlaPolicy>();
+
+    public DbSet<Holiday> Holidays => Set<Holiday>();
+
+    public DbSet<SlaBreach> SlaBreaches => Set<SlaBreach>();
+
     public void DiscardChanges() => ChangeTracker.Clear();
 
     private Guid? CurrentTenantId => tenant.TenantId;
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        var changedTickets = ChangeTracker.Entries<Ticket>()
+            .Where(entry => entry.State is EntityState.Added or EntityState.Modified)
+            .Select(entry => entry.Entity)
+            .ToList();
+        if (changedTickets.Count > 0)
+        {
+            // Resolved here rather than injected: the hooks themselves depend on this context.
+            foreach (var hook in services.GetServices<ITicketSaveHook>())
+            {
+                await hook.BeforeSaveAsync(changedTickets, cancellationToken);
+            }
+        }
+
         ApplyTenantAndAudit();
         var raised = TakeDomainEvents();
         var written = await base.SaveChangesAsync(cancellationToken);

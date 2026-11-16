@@ -17,7 +17,17 @@ public sealed record ListTicketsQuery(
     string? Search,
     string? Sort,
     int Page = 1,
-    int PageSize = Paging.DefaultPageSize) : IQuery<PagedResult<TicketListItem>>, IPagedRequest;
+    int PageSize = Paging.DefaultPageSize,
+    TicketSlaFilter? Sla = null) : IQuery<PagedResult<TicketListItem>>, IPagedRequest;
+
+public enum TicketSlaFilter
+{
+    /// <summary>A deadline was missed.</summary>
+    Breached,
+
+    /// <summary>A deadline is close but not yet missed.</summary>
+    AtRisk,
+}
 
 internal sealed class ListTicketsValidator : AbstractValidator<ListTicketsQuery>
 {
@@ -73,6 +83,16 @@ internal sealed class ListTicketsHandler(IAppDbContext db, ITicketSearch search)
             tickets = tickets.Where(t => t.RequesterId == requesterId);
         }
 
+        tickets = query.Sla switch
+        {
+            TicketSlaFilter.Breached => tickets.Where(t => t.FirstResponseBreachedAt != null || t.ResolutionBreachedAt != null),
+            TicketSlaFilter.AtRisk => tickets.Where(t =>
+                t.Status != TicketStatus.Closed
+                && ((t.FirstResponseWarnedAt != null && t.FirstResponseBreachedAt == null && t.FirstRespondedAt == null)
+                    || (t.ResolutionWarnedAt != null && t.ResolutionBreachedAt == null && t.ResolutionDueAt != null))),
+            _ => tickets,
+        };
+
         if (!string.IsNullOrWhiteSpace(query.Tag))
         {
             var tag = query.Tag.Trim().ToLowerInvariant();
@@ -88,6 +108,11 @@ internal sealed class ListTicketsHandler(IAppDbContext db, ITicketSearch search)
             ("priority", false) => tickets.OrderBy(t => t.Priority).ThenByDescending(t => t.LastActivityAt),
             ("priority", true) => tickets.OrderByDescending(t => t.Priority).ThenByDescending(t => t.LastActivityAt),
             ("lastactivityat", false) => tickets.OrderBy(t => t.LastActivityAt),
+            ("due", _) => tickets
+                .OrderBy(t => t.ResolutionDueAt == null && t.FirstResponseDueAt == null)
+                .ThenBy(t => t.FirstRespondedAt == null && t.FirstResponseDueAt != null && t.FirstResponseDueAt < t.ResolutionDueAt
+                    ? t.FirstResponseDueAt
+                    : t.ResolutionDueAt),
             _ => tickets.OrderByDescending(t => t.LastActivityAt).ThenByDescending(t => t.Number),
         };
 

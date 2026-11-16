@@ -43,6 +43,12 @@ public interface IAppDbContext
 
     DbSet<SavedView> SavedViews { get; }
 
+    DbSet<SlaPolicy> SlaPolicies { get; }
+
+    DbSet<Holiday> Holidays { get; }
+
+    DbSet<SlaBreach> SlaBreaches { get; }
+
     /// <summary>Forgets every tracked change, so an operation can be retried from fresh data.</summary>
     void DiscardChanges();
 
@@ -88,6 +94,12 @@ public interface IDomainEventHandler<in TEvent>
     where TEvent : IDomainEvent
 {
     Task Handle(TEvent domainEvent, CancellationToken cancellationToken);
+}
+
+/// <summary>Runs just before tickets are written, inside the same save, to keep derived state consistent.</summary>
+public interface ITicketSaveHook
+{
+    Task BeforeSaveAsync(IReadOnlyCollection<Ticket> tickets, CancellationToken cancellationToken);
 }
 
 public interface ITicketSearch

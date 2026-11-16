@@ -13,7 +13,13 @@ public sealed record SessionUser(
     string Language,
     bool IsPlatformAdmin);
 
-public sealed record SessionTenant(Guid Id, string Name, string Slug, string DefaultLanguage, string Timezone);
+public sealed record SessionTenant(
+    Guid Id,
+    string Name,
+    string Slug,
+    string DefaultLanguage,
+    string Timezone,
+    bool OnboardingCompleted);
 
 public sealed record SessionDto(SessionUser User, SessionTenant? Tenant, IReadOnlyCollection<string> Permissions)
 {
@@ -27,7 +33,13 @@ public sealed record SessionDto(SessionUser User, SessionTenant? Tenant, IReadOn
             user.IsPlatformAdmin),
         tenant is null
             ? null
-            : new SessionTenant(tenant.Id, tenant.Name, tenant.Slug, tenant.DefaultLanguage, tenant.Timezone),
+            : new SessionTenant(
+                tenant.Id,
+                tenant.Name,
+                tenant.Slug,
+                tenant.DefaultLanguage,
+                tenant.Timezone,
+                tenant.OnboardingCompletedAt is not null),
         user.IsPlatformAdmin ? [] : [.. Domain.Identity.Permissions.For(user.Role).Order(StringComparer.Ordinal)]);
 }
 

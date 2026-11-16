@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using NexDesk.Domain.Identity;
+using NexDesk.Domain.Sla;
+using NexDesk.Domain.Teams;
 using NexDesk.Domain.Tenants;
 
 namespace NexDesk.Application.Common;
@@ -13,6 +15,14 @@ public interface IAppDbContext
     DbSet<RefreshToken> RefreshTokens { get; }
 
     DbSet<OneTimeToken> OneTimeTokens { get; }
+
+    DbSet<Invitation> Invitations { get; }
+
+    DbSet<Team> Teams { get; }
+
+    DbSet<TeamMember> TeamMembers { get; }
+
+    DbSet<BusinessHoursDay> BusinessHours { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
 }
@@ -45,7 +55,11 @@ public interface IIdentityDirectory
     Task<User?> FindUserByIdAsync(Guid userId, CancellationToken cancellationToken);
 
     Task<bool> EmailExistsAsync(string email, CancellationToken cancellationToken);
+
+    Task<InvitationLookup?> FindInvitationAsync(string tokenHash, CancellationToken cancellationToken);
 }
+
+public sealed record InvitationLookup(Invitation Invitation, Tenant Tenant);
 
 public interface IPasswordHasher
 {

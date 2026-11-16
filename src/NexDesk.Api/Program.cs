@@ -3,7 +3,9 @@ using NexDesk.Api.Auth;
 using NexDesk.Api.Endpoints;
 using NexDesk.Api.Middleware;
 using NexDesk.Api.OpenApi;
+using NexDesk.Api.Realtime;
 using NexDesk.Application;
+using NexDesk.Application.Common;
 using NexDesk.Infrastructure;
 using NexDesk.Infrastructure.Persistence;
 using Npgsql;
@@ -24,6 +26,9 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddNexDeskAuthentication();
+builder.Services.AddSignalR().AddJsonProtocol(options =>
+    options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+builder.Services.AddSingleton<IRealtimeNotifier, SignalRRealtimeNotifier>();
 
 builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
 {
@@ -84,6 +89,8 @@ v1.MapAuthEndpoints();
 v1.MapWorkspaceEndpoints();
 v1.MapTicketEndpoints();
 v1.MapSlaEndpoints();
+v1.MapNotificationEndpoints();
+app.MapHub<NotificationsHub>(NotificationsHub.Path);
 
 await app.RunAsync();
 

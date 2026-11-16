@@ -3,9 +3,11 @@ using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 using NexDesk.Api.Endpoints;
+using NexDesk.Application.Notifications;
 using NexDesk.Application.Sla;
 using NexDesk.Application.Tickets;
 using NexDesk.Domain.Identity;
+using NexDesk.Domain.Notifications;
 using NexDesk.Domain.Tickets;
 
 namespace NexDesk.Api.OpenApi;
@@ -85,6 +87,10 @@ public static class OpenApiSetup
         [
             new SlaPolicyDto(TicketPriority.Urgent, 30, 240),
             new SlaPolicyDto(TicketPriority.High, 60, 480),
+        ]),
+        [typeof(UpdateNotificationPreferencesRequest)] = new UpdateNotificationPreferencesRequest(
+        [
+            new NotificationPreferenceDto(NotificationType.TicketNote, InApp: true, Email: false),
         ]),
         [typeof(AddHolidayRequest)] = new AddHolidayRequest(new DateOnly(2027, 1, 1), "New Year's Day"),
     };

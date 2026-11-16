@@ -8,6 +8,7 @@ using NexDesk.Infrastructure.Email;
 using NexDesk.Infrastructure.Identity;
 using NexDesk.Infrastructure.Persistence;
 using NexDesk.Infrastructure.Tenancy;
+using NexDesk.Infrastructure.Tickets;
 
 namespace NexDesk.Infrastructure;
 
@@ -37,6 +38,12 @@ public static class DependencyInjection
             .ValidateDataAnnotations().ValidateOnStart();
         services.AddOptions<EmailOptions>().BindConfiguration(EmailOptions.SectionName)
             .ValidateDataAnnotations().ValidateOnStart();
+
+        services.AddOptions<StorageOptions>().BindConfiguration(StorageOptions.SectionName)
+            .ValidateDataAnnotations().ValidateOnStart();
+        services.AddSingleton<IFileStorage, LocalDiskFileStorage>();
+        services.AddScoped<ITicketNumberAllocator, TicketNumberAllocator>();
+        services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
 
         services.AddMemoryCache();
         services.AddScoped<IIdentityDirectory, IdentityDirectory>();

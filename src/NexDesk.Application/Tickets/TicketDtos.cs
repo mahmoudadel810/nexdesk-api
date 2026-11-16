@@ -9,6 +9,26 @@ public sealed record PersonRef(Guid Id, string Name, string? Email);
 
 public sealed record TeamRef(Guid Id, string Name);
 
+/// <summary>Deadlines of a ticket. A due date is null when no policy applies or the clock is paused.</summary>
+public sealed record TicketSlaDto(
+    DateTimeOffset? FirstResponseDueAt,
+    bool FirstResponseBreached,
+    bool FirstResponseMet,
+    DateTimeOffset? ResolutionDueAt,
+    bool ResolutionBreached,
+    bool IsPaused,
+    bool IsEscalated)
+{
+    public static TicketSlaDto From(Ticket ticket) => new(
+        ticket.FirstResponseDueAt,
+        ticket.FirstResponseBreachedAt is not null,
+        ticket.FirstRespondedAt is not null && ticket.FirstResponseBreachedAt is null,
+        ticket.ResolutionDueAt,
+        ticket.ResolutionBreachedAt is not null,
+        ticket.IsSlaPaused,
+        ticket.IsEscalated);
+}
+
 public sealed record TicketListItem(
     Guid Id,
     int Number,
@@ -22,7 +42,8 @@ public sealed record TicketListItem(
     TeamRef? Team,
     IReadOnlyList<string> Tags,
     DateTimeOffset CreatedAt,
-    DateTimeOffset LastActivityAt);
+    DateTimeOffset LastActivityAt,
+    TicketSlaDto Sla);
 
 public sealed record TicketDetailDto(
     Guid Id,
@@ -45,7 +66,8 @@ public sealed record TicketDetailDto(
     bool IsWatching,
     IReadOnlyDictionary<string, string> CustomFields,
     TicketLink? MergedInto,
-    uint Version);
+    uint Version,
+    TicketSlaDto Sla);
 
 /// <summary>A pointer to another ticket.</summary>
 public sealed record TicketLink(Guid Id, int Number, string Subject);
@@ -158,7 +180,8 @@ internal static class TicketQueries
                 ticket.TeamId is { } teamId ? teams.GetValueOrDefault(teamId) : null,
                 ticket.Tags,
                 ticket.CreatedAt,
-                ticket.LastActivityAt))
+                ticket.LastActivityAt,
+                TicketSlaDto.From(ticket)))
             .ToList();
     }
 
@@ -209,6 +232,7 @@ internal static class TicketQueries
                     .Select(t => new TicketLink(t.Id, t.Number, t.Subject))
                     .FirstOrDefaultAsync(cancellationToken)
                 : null,
-            ticket.Version);
+            ticket.Version,
+            item.Sla);
     }
 }

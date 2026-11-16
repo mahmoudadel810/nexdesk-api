@@ -19,5 +19,47 @@
     "body": "{inviter} invited you to work on customer requests with the {workspace} team. Accept the invitation to choose your password and get started.",
     "button": "Accept invitation",
     "footer": "This invitation expires in {days} days. If you were not expecting it, you can ignore this email."
+  },
+  "notify-assigned": {
+    "subject": "Ticket #{number} was assigned to you",
+    "heading": "A ticket was assigned to you",
+    "body": "{actor} assigned you ticket #{number}: {subject}",
+    "button": "Open ticket",
+    "footer": "You can turn these emails off in your NexDesk profile."
+  },
+  "notify-reply": {
+    "subject": "New reply on ticket #{number}: {subject}",
+    "heading": "New reply on ticket #{number}",
+    "body": "{actor} replied on “{subject}”:",
+    "button": "Open ticket",
+    "footer": "You get this email because you are assigned to or watching this ticket."
+  },
+  "notify-note": {
+    "subject": "New internal note on ticket #{number}: {subject}",
+    "heading": "New internal note on ticket #{number}",
+    "body": "{actor} added an internal note on “{subject}”:",
+    "button": "Open ticket",
+    "footer": "You get this email because you are assigned to or watching this ticket."
+  },
+  "notify-sla-warning": {
+    "subject": "Ticket #{number} is close to its deadline",
+    "heading": "A deadline is close",
+    "body": "Ticket #{number} “{subject}” will soon miss its SLA target.",
+    "button": "Open ticket",
+    "footer": "You can turn these emails off in your NexDesk profile."
+  },
+  "notify-sla-breach": {
+    "subject": "Ticket #{number} missed its deadline",
+    "heading": "A deadline was missed",
+    "body": "Ticket #{number} “{subject}” missed its SLA target and was escalated.",
+    "button": "Open ticket",
+    "footer": "You can turn these emails off in your NexDesk profile."
+  },
+  "customer-reply": {
+    "subject": "Re: {subject} [#{number}]",
+    "heading": "{agent} replied to your request",
+    "body": "Hi {name}, there is a new reply on your request “{subject}”:",
+    "button": "View the conversation",
+    "footer": "You can reply to this email or use the button above to answer in the {workspace} help centre."
   }
 }

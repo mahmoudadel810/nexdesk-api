@@ -6,6 +6,7 @@ using NexDesk.Application.Common;
 using NexDesk.Domain.Common;
 using NexDesk.Domain.Customers;
 using NexDesk.Domain.Identity;
+using NexDesk.Domain.Notifications;
 using NexDesk.Domain.Sla;
 using NexDesk.Domain.Teams;
 using NexDesk.Domain.Tenants;
@@ -62,6 +63,10 @@ public sealed class AppDbContext(
     public DbSet<Holiday> Holidays => Set<Holiday>();
 
     public DbSet<SlaBreach> SlaBreaches => Set<SlaBreach>();
+
+    public DbSet<Notification> Notifications => Set<Notification>();
+
+    public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
 
     public void DiscardChanges() => ChangeTracker.Clear();
 

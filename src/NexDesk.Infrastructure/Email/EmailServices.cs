@@ -74,6 +74,12 @@ public sealed class EmailTemplateRenderer
                <p style="margin:0;color:#5c6370;font-size:13px;word-break:break-all;">{WebUtility.HtmlEncode(link)}</p>
                """;
 
+        // A quoted message keeps its line breaks and sits between the introduction and the button.
+        message.Model.TryGetValue("message", out var quoted);
+        var quote = string.IsNullOrWhiteSpace(quoted) && !message.Model.ContainsKey("preview")
+            ? string.Empty
+            : QuoteBlock(string.IsNullOrWhiteSpace(quoted) ? message.Model.GetValueOrDefault("preview") : quoted);
+
         var subject = Text("subject");
         var html = _layout
             .Replace("{{lang}}", language, StringComparison.Ordinal)
@@ -81,14 +87,20 @@ public sealed class EmailTemplateRenderer
             .Replace("{{subject}}", WebUtility.HtmlEncode(subject), StringComparison.Ordinal)
             .Replace("{{heading}}", Html("heading"), StringComparison.Ordinal)
             .Replace("{{body}}", $"<p style=\"margin:0;\">{Html("body")}</p>", StringComparison.Ordinal)
+            .Replace("{{quote}}", quote, StringComparison.Ordinal)
             .Replace("{{button}}", button, StringComparison.Ordinal)
             .Replace("{{footer}}", Html("footer"), StringComparison.Ordinal);
 
         var text = string.Join(
             "\n\n",
-            new[] { Text("heading"), Text("body"), link, Text("footer") }.Where(part => !string.IsNullOrEmpty(part)));
+            new[] { Text("heading"), Text("body"), quoted ?? message.Model.GetValueOrDefault("preview"), link, Text("footer") }
+                .Where(part => !string.IsNullOrEmpty(part)));
         return new RenderedEmail(subject, html, text);
     }
+
+    private static string QuoteBlock(string? text) => string.IsNullOrWhiteSpace(text)
+        ? string.Empty
+        : $"<blockquote dir=\"auto\" style=\"margin:16px 0;padding:12px 16px;background:#f3f5f9;border-radius:8px;white-space:pre-wrap;\">{WebUtility.HtmlEncode(text)}</blockquote>";
 
     private static string Fill(string template, IReadOnlyDictionary<string, string> model, bool encode)
     {

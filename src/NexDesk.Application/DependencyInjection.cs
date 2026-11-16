@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NexDesk.Application.Auth;
 using NexDesk.Application.Common;
 using NexDesk.Application.Tenants;
+using NexDesk.Application.Tickets;
 using NexDesk.Application.Users;
 
 namespace NexDesk.Application;
@@ -18,6 +19,7 @@ public static class DependencyInjection
         services.AddScoped<AuthEmails>();
         services.AddScoped<InvitationMailer>();
         services.AddScoped<TenantProvisioner>();
+        services.AddScoped<TicketWriter>();
 
         foreach (var implementation in assembly.GetTypes().Where(t => t is { IsClass: true, IsAbstract: false }))
         {
@@ -31,6 +33,10 @@ public static class DependencyInjection
                 else if (definition == typeof(IQueryHandler<,>))
                 {
                     Decorate(services, contract, implementation, typeof(ValidatingQueryHandler<,>));
+                }
+                else if (definition == typeof(IDomainEventHandler<>))
+                {
+                    services.AddScoped(contract, implementation);
                 }
             }
         }

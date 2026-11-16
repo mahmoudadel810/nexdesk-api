@@ -1,8 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using NexDesk.Domain.Common;
+using NexDesk.Domain.Customers;
 using NexDesk.Domain.Identity;
 using NexDesk.Domain.Sla;
 using NexDesk.Domain.Teams;
 using NexDesk.Domain.Tenants;
+using NexDesk.Domain.Tickets;
 
 namespace NexDesk.Application.Common;
 
@@ -23,6 +26,18 @@ public interface IAppDbContext
     DbSet<TeamMember> TeamMembers { get; }
 
     DbSet<BusinessHoursDay> BusinessHours { get; }
+
+    DbSet<Customer> Customers { get; }
+
+    DbSet<Ticket> Tickets { get; }
+
+    DbSet<TicketMessage> TicketMessages { get; }
+
+    DbSet<TicketEvent> TicketEvents { get; }
+
+    DbSet<TicketWatcher> TicketWatchers { get; }
+
+    DbSet<Attachment> Attachments { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
 }
@@ -60,6 +75,28 @@ public interface IIdentityDirectory
 }
 
 public sealed record InvitationLookup(Invitation Invitation, Tenant Tenant);
+
+/// <summary>Handles a domain event after the change that raised it has been saved.</summary>
+public interface IDomainEventHandler<in TEvent>
+    where TEvent : IDomainEvent
+{
+    Task Handle(TEvent domainEvent, CancellationToken cancellationToken);
+}
+
+public interface ITicketNumberAllocator
+{
+    /// <summary>Returns the next ticket number of the tenant in scope. Numbers are never reused.</summary>
+    Task<int> NextAsync(CancellationToken cancellationToken);
+}
+
+public interface IFileStorage
+{
+    Task SaveAsync(string key, Stream content, CancellationToken cancellationToken);
+
+    Task<Stream?> OpenReadAsync(string key, CancellationToken cancellationToken);
+
+    Task DeleteAsync(string key, CancellationToken cancellationToken);
+}
 
 public interface IPasswordHasher
 {

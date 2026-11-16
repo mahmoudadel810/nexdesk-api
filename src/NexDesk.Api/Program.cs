@@ -82,6 +82,7 @@ v1.MapGet("/meta", () => TypedResults.Ok(new ApiMetadata("NexDesk API", "v1")))
     .WithTags("Meta");
 v1.MapAuthEndpoints();
 v1.MapWorkspaceEndpoints();
+v1.MapTicketEndpoints();
 
 await app.RunAsync();
 

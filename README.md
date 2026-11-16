@@ -35,6 +35,9 @@ cp .env.example .env
 docker compose up --build
 ```
 
+Before the first start, replace `JWT_SIGNING_KEY` in `.env` with a random value of at least 32
+characters (`openssl rand -base64 48`). The API applies its database migrations on startup.
+
 | Service | URL |
 |---------|-----|
 | API | http://localhost:8080 |
@@ -51,7 +54,16 @@ cp src/NexDesk.Api/appsettings.Development.example.json src/NexDesk.Api/appsetti
 dotnet run --project src/NexDesk.Api
 ```
 
-Set the password in `appsettings.Development.json` to match `POSTGRES_PASSWORD` in `.env`.
+Set the password in `appsettings.Development.json` to match `POSTGRES_PASSWORD` in `.env`, and
+give `Jwt:SigningKey` a random value of at least 32 characters.
+
+## Authentication
+
+Staff sign in with email and password. The API answers with a 15-minute JWT access token and sets
+a rotating refresh token in an `HttpOnly`, `SameSite=Strict` cookie scoped to `/api/v1/auth`.
+Refresh tokens are stored hashed; presenting one that was already rotated revokes its whole
+family. New workspaces must confirm their email address — in local development the message lands
+in Mailpit at http://localhost:8025.
 
 ## Tests
 

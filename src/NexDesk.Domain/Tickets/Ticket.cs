@@ -72,6 +72,15 @@ public sealed class Ticket : AuditableEntity, ITenantOwned, ISoftDeletable
 
     public List<string> Tags { get; private set; } = [];
 
+    /// <summary>Values of the tenant-defined fields, keyed by field key.</summary>
+    public Dictionary<string, string> CustomFields { get; private set; } = [];
+
+    /// <summary>The ticket this one was merged into as a duplicate.</summary>
+    public Guid? MergedIntoId { get; private set; }
+
+    /// <summary>Changes on every write. Clients send it back so a stale edit is rejected instead of applied.</summary>
+    public uint Version { get; private set; }
+
     public DateTimeOffset LastActivityAt { get; private set; }
 
     public DateTimeOffset? FirstRespondedAt { get; private set; }
@@ -182,6 +191,86 @@ public sealed class Ticket : AuditableEntity, ITenantOwned, ISoftDeletable
         Type = type;
     }
 
+    /// <summary>Sets the custom field values of a ticket that is being created, without timeline entries.</summary>
+    public void InitializeCustomFields(IReadOnlyDictionary<string, string?> values) =>
+        CustomFields = values.Where(pair => pair.Value is not null).ToDictionary(pair => pair.Key, pair => pair.Value!);
+
+    /// <summary>Replaces the given custom field values. A null value clears the field.</summary>
+    /// <param name="values">Validated values keyed by field key.</param>
+    /// <param name="labels">Display label of each field, stored in the timeline.</param>
+    /// <param name="actor">Who made the change.</param>
+    /// <param name="now">When the change happened.</param>
+    public void SetCustomFields(
+        IReadOnlyDictionary<string, string?> values,
+        IReadOnlyDictionary<string, string> labels,
+        Actor actor,
+        DateTimeOffset now)
+    {
+        var updated = new Dictionary<string, string>(CustomFields);
+        foreach (var (key, value) in values)
+        {
+            var previous = updated.GetValueOrDefault(key);
+            if (previous == value)
+            {
+                continue;
+            }
+
+            if (value is null)
+            {
+                updated.Remove(key);
+            }
+            else
+            {
+                updated[key] = value;
+            }
+
+            Record(TicketEventType.CustomFieldChanged, actor, previous, value, now, labels.GetValueOrDefault(key, key));
+        }
+
+        // A new instance, so the change tracker notices the JSON column changed.
+        CustomFields = updated;
+    }
+
+    /// <summary>
+    /// Folds a duplicate into this ticket: its conversation and files move here, its watchers follow,
+    /// and the duplicate is closed with a pointer to this ticket.
+    /// </summary>
+    public void Absorb(
+        Ticket duplicate,
+        IEnumerable<TicketMessage> duplicateMessages,
+        IEnumerable<Attachment> duplicateAttachments,
+        Actor actor,
+        DateTimeOffset now)
+    {
+        if (duplicate.Id == Id)
+        {
+            throw new ArgumentException("A ticket cannot be merged into itself.", nameof(duplicate));
+        }
+
+        EnsureNotClosed();
+        duplicate.EnsureNotClosed();
+
+        foreach (var message in duplicateMessages)
+        {
+            message.MoveTo(Id);
+        }
+
+        foreach (var attachment in duplicateAttachments)
+        {
+            attachment.MoveTo(Id);
+        }
+
+        foreach (var watcher in duplicate.Watchers)
+        {
+            Watch(watcher.UserId);
+        }
+
+        Record(TicketEventType.MergedFrom, actor, null, $"#{duplicate.Number}", now);
+        duplicate.Record(TicketEventType.MergedInto, actor, null, $"#{Number}", now);
+        duplicate.MergedIntoId = Id;
+        duplicate.ChangeStatus(TicketStatus.Closed, actor, now);
+    }
+
     public void SetTags(IEnumerable<string>? tags, Actor actor, DateTimeOffset now)
     {
         var normalized = NormalizeTags(tags);
@@ -274,9 +363,15 @@ public sealed class Ticket : AuditableEntity, ITenantOwned, ISoftDeletable
         }
     }
 
-    private void Record(TicketEventType type, Actor actor, string? oldValue, string? newValue, DateTimeOffset now)
+    private void Record(
+        TicketEventType type,
+        Actor actor,
+        string? oldValue,
+        string? newValue,
+        DateTimeOffset now,
+        string? field = null)
     {
-        _events.Add(TicketEvent.Create(Id, type, actor, oldValue, newValue, now));
+        _events.Add(TicketEvent.Create(Id, type, actor, oldValue, newValue, now, field));
         LastActivityAt = now;
         if (!DomainEvents.OfType<TicketChanged>().Any())
         {

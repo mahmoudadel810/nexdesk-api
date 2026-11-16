@@ -33,6 +33,8 @@ public sealed class TicketMessage : Entity, ITenantOwned
     public bool IsInternal { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
+
+    internal void MoveTo(Guid ticketId) => TicketId = ticketId;
 }
 
 public enum TicketEventType
@@ -45,6 +47,9 @@ public enum TicketEventType
     AssigneeChanged,
     TeamChanged,
     TagsChanged,
+    CustomFieldChanged,
+    MergedInto,
+    MergedFrom,
 }
 
 /// <summary>One entry of the activity timeline. Values are stored as display text so history survives renames.</summary>
@@ -64,6 +69,9 @@ public sealed class TicketEvent : Entity, ITenantOwned
 
     public Guid? ActorId { get; private set; }
 
+    /// <summary>Label of the custom field a change refers to.</summary>
+    public string? Field { get; private set; }
+
     public string? OldValue { get; private set; }
 
     public string? NewValue { get; private set; }
@@ -76,8 +84,10 @@ public sealed class TicketEvent : Entity, ITenantOwned
         Actor actor,
         string? oldValue,
         string? newValue,
-        DateTimeOffset now) => new()
+        DateTimeOffset now,
+        string? field = null) => new()
         {
+            Field = field,
             TicketId = ticketId,
             Type = type,
             ActorType = actor.Type,
@@ -171,4 +181,6 @@ public sealed class Attachment : Entity, ITenantOwned
         TicketId = message.TicketId;
         MessageId = message.Id;
     }
+
+    internal void MoveTo(Guid ticketId) => TicketId = ticketId;
 }

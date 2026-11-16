@@ -92,8 +92,16 @@ events — none of them is called directly from ticket code. Work that can fail 
 
 `IEntitlementService` is the single place that answers "may this tenant do X?" from the tenant's
 plan and current usage (`EnsureCanAddAgent`, `EnsureCanCreateTicket`, `EnsureStorageAvailable`,
-`EnsureFeature(ApiAccess)`, …). Handlers call it from phase 2 onward; until phase 10 every tenant
-is on an implicit unlimited plan, so adding billing does not touch the handlers again.
+`EnsureFeature(ApiAccess)`, …). It arrives with billing in phase 10 and is then called from the
+few handlers that consume a limit: inviting and reactivating staff, creating tickets, uploading
+attachments, adding automation rules and issuing API keys. Attachments record their size from
+the start so storage usage can be computed without a backfill.
+
+### 1.7a Tenant provisioning
+
+`TenantProvisioner.AddDefaults()` creates the rows every workspace needs (business hours, and
+later the ticket number sequence and default SLA policies). Workspace sign-up and the demo
+seeder both call it, so a tenant can never exist without them.
 
 ### 1.8 Frontend conventions
 

@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NexDesk.Infrastructure.Persistence;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+using NpgsqlTypes;
 
 #nullable disable
 
@@ -630,6 +631,140 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                     b.ToTable("attachments", (string)null);
                 });
 
+            modelBuilder.Entity("NexDesk.Domain.Tickets.CustomField", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_required");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("key");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("label");
+
+                    b.PrimitiveCollection<List<string>>("Options")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("options");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("type");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_custom_fields");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_custom_fields_tenant_id");
+
+                    b.HasIndex("TenantId", "Key")
+                        .IsUnique()
+                        .HasDatabaseName("ix_custom_fields_tenant_id_key");
+
+                    b.ToTable("custom_fields", (string)null);
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Tickets.SavedView", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("FilterJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("filter");
+
+                    b.Property<bool>("IsShared")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_shared");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_id");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_saved_views");
+
+                    b.HasIndex("OwnerId")
+                        .HasDatabaseName("ix_saved_views_owner_id");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_saved_views_tenant_id");
+
+                    b.HasIndex("TenantId", "OwnerId")
+                        .HasDatabaseName("ix_saved_views_tenant_id_owner_id");
+
+                    b.ToTable("saved_views", (string)null);
+                });
+
             modelBuilder.Entity("NexDesk.Domain.Tickets.Ticket", b =>
                 {
                     b.Property<Guid>("Id")
@@ -658,6 +793,11 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("created_by");
 
+                    b.Property<string>("CustomFields")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("custom_fields");
+
                     b.Property<DateTimeOffset?>("DeletedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_at");
@@ -674,6 +814,10 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_activity_at");
 
+                    b.Property<Guid?>("MergedIntoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("merged_into_id");
+
                     b.Property<int>("Number")
                         .HasColumnType("integer")
                         .HasColumnName("number");
@@ -686,6 +830,12 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("RequesterId")
                         .HasColumnType("uuid")
                         .HasColumnName("requester_id");
+
+                    b.Property<NpgsqlTsVector>("SearchVector")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("tsvector")
+                        .HasColumnName("search_vector")
+                        .HasComputedColumnSql("to_tsvector('simple', subject)", true);
 
                     b.Property<DateTimeOffset?>("SolvedAt")
                         .HasColumnType("timestamp with time zone")
@@ -730,14 +880,28 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("updated_by");
 
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id")
                         .HasName("pk_tickets");
 
                     b.HasIndex("AssigneeId")
                         .HasDatabaseName("ix_tickets_assignee_id");
 
+                    b.HasIndex("MergedIntoId")
+                        .HasDatabaseName("ix_tickets_merged_into_id");
+
                     b.HasIndex("RequesterId")
                         .HasDatabaseName("ix_tickets_requester_id");
+
+                    b.HasIndex("SearchVector")
+                        .HasDatabaseName("ix_tickets_search_vector");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("SearchVector"), "gin");
 
                     b.HasIndex("Tags")
                         .HasDatabaseName("ix_tickets_tags");
@@ -788,6 +952,11 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<string>("Field")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("field");
 
                     b.Property<string>("NewValue")
                         .HasMaxLength(1000)
@@ -855,6 +1024,12 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_internal");
 
+                    b.Property<NpgsqlTsVector>("SearchVector")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("tsvector")
+                        .HasColumnName("search_vector")
+                        .HasComputedColumnSql("to_tsvector('simple', body)", true);
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid")
                         .HasColumnName("tenant_id");
@@ -865,6 +1040,11 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_ticket_messages");
+
+                    b.HasIndex("SearchVector")
+                        .HasDatabaseName("ix_ticket_messages_search_vector");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("SearchVector"), "gin");
 
                     b.HasIndex("TenantId")
                         .HasDatabaseName("ix_ticket_messages_tenant_id");
@@ -1012,6 +1192,33 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_attachments_tickets_ticket_id");
                 });
 
+            modelBuilder.Entity("NexDesk.Domain.Tickets.CustomField", b =>
+                {
+                    b.HasOne("NexDesk.Domain.Tenants.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_custom_fields_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Tickets.SavedView", b =>
+                {
+                    b.HasOne("NexDesk.Domain.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_saved_views_users_owner_id");
+
+                    b.HasOne("NexDesk.Domain.Tenants.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_saved_views_tenants_tenant_id");
+                });
+
             modelBuilder.Entity("NexDesk.Domain.Tickets.Ticket", b =>
                 {
                     b.HasOne("NexDesk.Domain.Identity.User", null)
@@ -1019,6 +1226,12 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                         .HasForeignKey("AssigneeId")
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_tickets_users_assignee_id");
+
+                    b.HasOne("NexDesk.Domain.Tickets.Ticket", null)
+                        .WithMany()
+                        .HasForeignKey("MergedIntoId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_tickets_tickets_merged_into_id");
 
                     b.HasOne("NexDesk.Domain.Customers.Customer", null)
                         .WithMany()

@@ -42,7 +42,13 @@ public sealed record TicketDetailDto(
     DateTimeOffset? SolvedAt,
     DateTimeOffset? ClosedAt,
     IReadOnlyList<PersonRef> Watchers,
-    bool IsWatching);
+    bool IsWatching,
+    IReadOnlyDictionary<string, string> CustomFields,
+    TicketLink? MergedInto,
+    uint Version);
+
+/// <summary>A pointer to another ticket.</summary>
+public sealed record TicketLink(Guid Id, int Number, string Subject);
 
 public sealed record AttachmentDto(Guid Id, string FileName, string ContentType, long SizeBytes);
 
@@ -63,6 +69,7 @@ public sealed record TimelineItem(
     bool IsInternal,
     IReadOnlyList<AttachmentDto> Attachments,
     TicketEventType? EventType,
+    string? Field,
     string? OldValue,
     string? NewValue);
 
@@ -71,6 +78,21 @@ public static class TicketErrors
     public static readonly Error NotFound = Error.NotFound("ticket-not-found", "The ticket was not found.");
 
     public static readonly Error Closed = Error.Conflict("ticket-closed", "A closed ticket cannot be changed.");
+
+    public static readonly Error Stale = Error.Conflict(
+        "stale-ticket", "Someone else changed this ticket. Reload it and apply your change again.");
+
+    public static readonly Error MergeIntoSelf =
+        Error.Validation("merge-into-self", "A ticket cannot be merged into itself.");
+
+    public static readonly Error UnknownCustomField =
+        Error.Validation("unknown-custom-field", "One of the custom fields does not exist.");
+
+    public static readonly Error InvalidCustomFieldValue =
+        Error.Validation("invalid-custom-field-value", "A custom field has a value that does not fit its type.");
+
+    public static readonly Error RequiredCustomFieldMissing =
+        Error.Validation("required-custom-field-missing", "Fill in every required custom field.");
 
     public static readonly Error RequesterRequired =
         Error.Validation("requester-required", "Choose an existing customer or enter their email address.");
@@ -179,6 +201,14 @@ internal static class TicketQueries
             ticket.SolvedAt,
             ticket.ClosedAt,
             watchers,
-            viewerId is not null && watchers.Any(w => w.Id == viewerId));
+            viewerId is not null && watchers.Any(w => w.Id == viewerId),
+            ticket.CustomFields,
+            ticket.MergedIntoId is { } mergedIntoId
+                ? await db.Tickets.AsNoTracking()
+                    .Where(t => t.Id == mergedIntoId)
+                    .Select(t => new TicketLink(t.Id, t.Number, t.Subject))
+                    .FirstOrDefaultAsync(cancellationToken)
+                : null,
+            ticket.Version);
     }
 }

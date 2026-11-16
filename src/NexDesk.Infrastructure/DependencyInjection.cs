@@ -43,6 +43,7 @@ public static class DependencyInjection
             .ValidateDataAnnotations().ValidateOnStart();
         services.AddSingleton<IFileStorage, LocalDiskFileStorage>();
         services.AddScoped<ITicketNumberAllocator, TicketNumberAllocator>();
+        services.AddScoped<ITicketSearch, TicketSearch>();
         services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
 
         services.AddMemoryCache();

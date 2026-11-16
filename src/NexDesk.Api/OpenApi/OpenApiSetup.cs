@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 using NexDesk.Api.Endpoints;
 using NexDesk.Application.Sla;
+using NexDesk.Application.Tickets;
 using NexDesk.Domain.Identity;
 using NexDesk.Domain.Tickets;
 
@@ -51,9 +52,31 @@ public static class OpenApiSetup
             TicketType.Incident,
             Tags: ["billing", "invoice"]),
         [typeof(UpdateTicketRequest)] = new UpdateTicketRequest(
-            Subject: null, TicketStatus.Pending, TicketPriority.Urgent, Type: null, Tags: ["billing", "escalated"]),
+            Subject: null,
+            TicketStatus.Pending,
+            TicketPriority.Urgent,
+            Type: null,
+            Tags: ["billing", "escalated"],
+            CustomFields: new Dictionary<string, string?> { ["order_number"] = "SO-10482" },
+            Version: 48213),
         [typeof(AssignTicketRequest)] = new AssignTicketRequest(
-            Guid.Parse("0196b6c2-7c1e-7a53-9d55-3a5d1f0c8e21"), Guid.Parse("0196b6c2-9a40-7d11-8f3b-6c2e4d7a1b90")),
+            Guid.Parse("0196b6c2-7c1e-7a53-9d55-3a5d1f0c8e21"),
+            Guid.Parse("0196b6c2-9a40-7d11-8f3b-6c2e4d7a1b90"),
+            Version: 48213),
+        [typeof(BulkUpdateRequest)] = new BulkUpdateRequest(
+            [Guid.Parse("0196b6c3-1d2e-7f40-a1b2-c3d4e5f60718"), Guid.Parse("0196b6c3-2e3f-7a51-b2c3-d4e5f6071829")],
+            Status: TicketStatus.Solved,
+            AddTags: ["outage-2026-11"]),
+        [typeof(MergeTicketRequest)] = new MergeTicketRequest(Guid.Parse("0196b6c3-2e3f-7a51-b2c3-d4e5f6071829")),
+        [typeof(CreateCustomFieldRequest)] = new CreateCustomFieldRequest(
+            "product_area", "Product area", CustomFieldType.Dropdown, ["Billing", "Mobile app", "Web app"], IsRequired: true),
+        [typeof(UpdateCustomFieldRequest)] = new UpdateCustomFieldRequest(
+            "Product area", ["Billing", "Mobile app", "Web app", "Integrations"], IsRequired: true, Position: 1),
+        [typeof(SaveViewRequest)] = new SaveViewRequest(
+            "Urgent and unassigned",
+            IsShared: true,
+            new TicketViewFilter(
+                [TicketStatus.New, TicketStatus.Open], [TicketPriority.Urgent], "unassigned", null, null, null, "-createdAt")),
         [typeof(AddMessageRequest)] = new AddMessageRequest(
             "Thanks for the report. We fixed the download link, could you try again?",
             IsInternal: false,

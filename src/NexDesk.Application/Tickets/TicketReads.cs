@@ -14,6 +14,7 @@ public sealed record ListTicketsQuery(
     Guid? TeamId,
     Guid? RequesterId,
     string? Tag,
+    string? Search,
     string? Sort,
     int Page = 1,
     int PageSize = Paging.DefaultPageSize) : IQuery<PagedResult<TicketListItem>>, IPagedRequest;
@@ -24,12 +25,13 @@ internal sealed class ListTicketsValidator : AbstractValidator<ListTicketsQuery>
     {
         this.AddPagingRules();
         RuleFor(q => q.Tag).MaximumLength(Ticket.TagMaxLength);
+        RuleFor(q => q.Search).MaximumLength(200);
         RuleForEach(q => q.Status).IsInEnum();
         RuleForEach(q => q.Priority).IsInEnum();
     }
 }
 
-internal sealed class ListTicketsHandler(IAppDbContext db)
+internal sealed class ListTicketsHandler(IAppDbContext db, ITicketSearch search)
     : IQueryHandler<ListTicketsQuery, PagedResult<TicketListItem>>
 {
     public async Task<Result<PagedResult<TicketListItem>>> Handle(
@@ -37,6 +39,11 @@ internal sealed class ListTicketsHandler(IAppDbContext db)
         CancellationToken cancellationToken)
     {
         var tickets = db.Tickets.AsNoTracking();
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            tickets = search.Matching(tickets, query.Search);
+        }
+
         if (query.Status is { Count: > 0 } statuses)
         {
             tickets = tickets.Where(t => statuses.Contains(t.Status));
@@ -172,6 +179,7 @@ internal static class TimelineReader
                 [.. attachments[m.Id].Select(a => new AttachmentDto(a.Id, a.FileName, a.ContentType, a.SizeBytes))],
                 null,
                 null,
+                null,
                 null))
             .Concat(events.Select(e => new TimelineItem(
                 e.Id,
@@ -182,6 +190,7 @@ internal static class TimelineReader
                 false,
                 [],
                 e.Type,
+                e.Field,
                 e.OldValue,
                 e.NewValue)))
             .OrderBy(item => item.CreatedAt)

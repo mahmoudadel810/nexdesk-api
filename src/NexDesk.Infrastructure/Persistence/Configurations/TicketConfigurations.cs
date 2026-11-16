@@ -1,12 +1,24 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using NexDesk.Domain.Customers;
 using NexDesk.Domain.Identity;
 using NexDesk.Domain.Teams;
 using NexDesk.Domain.Tenants;
 using NexDesk.Domain.Tickets;
+using NpgsqlTypes;
 
 namespace NexDesk.Infrastructure.Persistence.Configurations;
+
+internal static class TicketSchema
+{
+    /// <summary>Name of the generated full-text column on tickets and ticket messages.</summary>
+    public const string SearchVector = "SearchVector";
+
+    /// <summary>Text search configuration without stemming, so it works for English and Arabic alike.</summary>
+    public const string SearchConfig = "simple";
+}
 
 internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
 {
@@ -33,6 +45,24 @@ internal sealed class TicketConfiguration : IEntityTypeConfiguration<Ticket>
         builder.Property(t => t.Priority).HasConversion<int>();
         builder.Property(t => t.Tags).HasColumnType("text[]");
         builder.Ignore(t => t.IsClosed);
+
+        builder.Property(t => t.CustomFields)
+            .HasColumnType("jsonb")
+            .HasConversion(
+                fields => JsonSerializer.Serialize(fields, JsonSerializerOptions.Default),
+                json => JsonSerializer.Deserialize<Dictionary<string, string>>(json, JsonSerializerOptions.Default)!,
+                new ValueComparer<Dictionary<string, string>>(
+                    (left, right) => ReferenceEquals(left, right),
+                    fields => fields.Count,
+                    fields => fields));
+
+        // PostgreSQL's row version: it changes on every update, so no extra column or trigger is needed.
+        builder.Property(t => t.Version).HasColumnName("xmin").HasColumnType("xid").IsRowVersion();
+
+        builder.Property<NpgsqlTsVector>(TicketSchema.SearchVector)
+            .HasComputedColumnSql($"to_tsvector('{TicketSchema.SearchConfig}', subject)", stored: true);
+        builder.HasIndex(TicketSchema.SearchVector).HasMethod("gin");
+        builder.HasOne<Ticket>().WithMany().HasForeignKey(t => t.MergedIntoId).OnDelete(DeleteBehavior.SetNull);
 
         builder.HasIndex(t => new { t.TenantId, t.Number }).IsUnique();
         builder.HasIndex(t => new { t.TenantId, t.Status });
@@ -63,6 +93,9 @@ internal sealed class TicketMessageConfiguration : IEntityTypeConfiguration<Tick
         builder.Property(m => m.Id).ValueGeneratedNever();
         builder.Property(m => m.Body).HasMaxLength(TicketMessage.BodyMaxLength);
         builder.HasIndex(m => new { m.TicketId, m.CreatedAt });
+        builder.Property<NpgsqlTsVector>(TicketSchema.SearchVector)
+            .HasComputedColumnSql($"to_tsvector('{TicketSchema.SearchConfig}', body)", stored: true);
+        builder.HasIndex(TicketSchema.SearchVector).HasMethod("gin");
     }
 }
 
@@ -72,6 +105,7 @@ internal sealed class TicketEventConfiguration : IEntityTypeConfiguration<Ticket
     {
         builder.ToTable("ticket_events");
         builder.Property(e => e.Id).ValueGeneratedNever();
+        builder.Property(e => e.Field).HasMaxLength(CustomField.LabelMaxLength);
         builder.Property(e => e.OldValue).HasMaxLength(1000);
         builder.Property(e => e.NewValue).HasMaxLength(1000);
         builder.HasIndex(e => new { e.TicketId, e.CreatedAt });
@@ -103,6 +137,34 @@ internal sealed class AttachmentConfiguration : IEntityTypeConfiguration<Attachm
         builder.HasOne<Tenant>().WithMany().HasForeignKey(a => a.TenantId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<Ticket>().WithMany().HasForeignKey(a => a.TicketId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<TicketMessage>().WithMany().HasForeignKey(a => a.MessageId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class CustomFieldConfiguration : IEntityTypeConfiguration<CustomField>
+{
+    public void Configure(EntityTypeBuilder<CustomField> builder)
+    {
+        builder.ToTable("custom_fields");
+        builder.Property(f => f.Id).ValueGeneratedNever();
+        builder.Property(f => f.Key).HasMaxLength(CustomField.KeyMaxLength);
+        builder.Property(f => f.Label).HasMaxLength(CustomField.LabelMaxLength);
+        builder.Property(f => f.Options).HasColumnType("text[]");
+        builder.HasIndex(f => new { f.TenantId, f.Key }).IsUnique();
+        builder.HasOne<Tenant>().WithMany().HasForeignKey(f => f.TenantId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class SavedViewConfiguration : IEntityTypeConfiguration<SavedView>
+{
+    public void Configure(EntityTypeBuilder<SavedView> builder)
+    {
+        builder.ToTable("saved_views");
+        builder.Property(v => v.Id).ValueGeneratedNever();
+        builder.Property(v => v.Name).HasMaxLength(SavedView.NameMaxLength);
+        builder.Property(v => v.FilterJson).HasColumnName("filter").HasColumnType("jsonb");
+        builder.HasIndex(v => new { v.TenantId, v.OwnerId });
+        builder.HasOne<Tenant>().WithMany().HasForeignKey(v => v.TenantId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<User>().WithMany().HasForeignKey(v => v.OwnerId).OnDelete(DeleteBehavior.Cascade);
     }
 }
 

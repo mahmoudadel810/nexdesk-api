@@ -39,6 +39,13 @@ public interface IAppDbContext
 
     DbSet<Attachment> Attachments { get; }
 
+    DbSet<CustomField> CustomFields { get; }
+
+    DbSet<SavedView> SavedViews { get; }
+
+    /// <summary>Forgets every tracked change, so an operation can be retried from fresh data.</summary>
+    void DiscardChanges();
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
 }
 
@@ -81,6 +88,12 @@ public interface IDomainEventHandler<in TEvent>
     where TEvent : IDomainEvent
 {
     Task Handle(TEvent domainEvent, CancellationToken cancellationToken);
+}
+
+public interface ITicketSearch
+{
+    /// <summary>Narrows tickets to those whose subject, conversation, number or requester match the term.</summary>
+    IQueryable<Ticket> Matching(IQueryable<Ticket> tickets, string term);
 }
 
 public interface ITicketNumberAllocator

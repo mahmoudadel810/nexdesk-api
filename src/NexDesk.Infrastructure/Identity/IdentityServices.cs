@@ -63,6 +63,20 @@ internal sealed class IdentityDirectory(AppDbContext db) : IIdentityDirectory, I
             .IgnoreQueryFilters([AppDbContext.TenantFilter])
             .AnyAsync(u => u.Email == normalized, cancellationToken);
     }
+
+    public async Task<InvitationLookup?> FindInvitationAsync(string tokenHash, CancellationToken cancellationToken)
+    {
+        var invitation = await db.Invitations
+            .IgnoreQueryFilters([AppDbContext.TenantFilter])
+            .FirstOrDefaultAsync(i => i.TokenHash == tokenHash, cancellationToken);
+        if (invitation is null)
+        {
+            return null;
+        }
+
+        var tenant = await db.Tenants.FirstAsync(t => t.Id == invitation.TenantId, cancellationToken);
+        return new InvitationLookup(invitation, tenant);
+    }
 }
 
 internal sealed class PasswordHasherAdapter : IPasswordHasher

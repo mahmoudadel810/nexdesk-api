@@ -23,6 +23,85 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "citext");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("NexDesk.Domain.Identity.Invitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("AcceptedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("accepted_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("citext")
+                        .HasColumnName("email");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<Guid>("InvitedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("invited_by_id");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("role");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("token_hash");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_invitations");
+
+                    b.HasIndex("InvitedById")
+                        .HasDatabaseName("ix_invitations_invited_by_id");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_invitations_tenant_id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_invitations_token_hash");
+
+                    b.HasIndex("TenantId", "Email")
+                        .HasDatabaseName("ix_invitations_tenant_id_email");
+
+                    b.ToTable("invitations", (string)null);
+                });
+
             modelBuilder.Entity("NexDesk.Domain.Identity.OneTimeToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -151,6 +230,12 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("Availability")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("availability");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -242,6 +327,122 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("NexDesk.Domain.Sla.BusinessHoursDay", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Day")
+                        .HasMaxLength(32)
+                        .HasColumnType("integer")
+                        .HasColumnName("day");
+
+                    b.Property<TimeOnly>("EndTime")
+                        .HasColumnType("time without time zone")
+                        .HasColumnName("end_time");
+
+                    b.Property<bool>("IsWorkingDay")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_working_day");
+
+                    b.Property<TimeOnly>("StartTime")
+                        .HasColumnType("time without time zone")
+                        .HasColumnName("start_time");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_business_hours");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_business_hours_tenant_id");
+
+                    b.HasIndex("TenantId", "Day")
+                        .IsUnique()
+                        .HasDatabaseName("ix_business_hours_tenant_id_day");
+
+                    b.ToTable("business_hours", (string)null);
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Teams.Team", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_teams");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_teams_tenant_id");
+
+                    b.HasIndex("TenantId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_teams_tenant_id_name");
+
+                    b.ToTable("teams", (string)null);
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Teams.TeamMember", b =>
+                {
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("team_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("TeamId", "UserId")
+                        .HasName("pk_team_members");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_team_members_tenant_id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_team_members_user_id");
+
+                    b.ToTable("team_members", (string)null);
+                });
+
             modelBuilder.Entity("NexDesk.Domain.Tenants.Tenant", b =>
                 {
                     b.Property<Guid>("Id")
@@ -267,6 +468,10 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("name");
+
+                    b.Property<DateTimeOffset?>("OnboardingCompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("onboarding_completed_at");
 
                     b.Property<string>("Slug")
                         .IsRequired()
@@ -304,6 +509,23 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                     b.ToTable("tenants", (string)null);
                 });
 
+            modelBuilder.Entity("NexDesk.Domain.Identity.Invitation", b =>
+                {
+                    b.HasOne("NexDesk.Domain.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("InvitedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_invitations_users_invited_by_id");
+
+                    b.HasOne("NexDesk.Domain.Tenants.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_invitations_tenants_tenant_id");
+                });
+
             modelBuilder.Entity("NexDesk.Domain.Identity.User", b =>
                 {
                     b.HasOne("NexDesk.Domain.Tenants.Tenant", null)
@@ -311,6 +533,48 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_users_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Sla.BusinessHoursDay", b =>
+                {
+                    b.HasOne("NexDesk.Domain.Tenants.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_business_hours_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Teams.Team", b =>
+                {
+                    b.HasOne("NexDesk.Domain.Tenants.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_teams_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Teams.TeamMember", b =>
+                {
+                    b.HasOne("NexDesk.Domain.Teams.Team", null)
+                        .WithMany("Members")
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_team_members_teams_team_id");
+
+                    b.HasOne("NexDesk.Domain.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_team_members_users_user_id");
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Teams.Team", b =>
+                {
+                    b.Navigation("Members");
                 });
 #pragma warning restore 612, 618
         }

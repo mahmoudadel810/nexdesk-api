@@ -92,3 +92,48 @@ public static class TestWorkspaces
         return problem.GetProperty("code").GetString()!;
     }
 }
+
+/// <summary>A staff member who joined a workspace through an invitation.</summary>
+public sealed record TestMember(HttpClient Client, Guid UserId, string Email, string Password, string RefreshCookie);
+
+public static class TestMembers
+{
+    public static async Task<TestMember> AddMemberAsync(
+        this ApiFactory factory,
+        TestWorkspace workspace,
+        NexDesk.Domain.Identity.Role role,
+        string fullName = "Aaron Agent")
+    {
+        var email = TestWorkspaces.UniqueEmail(role.ToString().ToLowerInvariant());
+        var invited = await workspace.Client.PostAsJsonAsync("/api/v1/invitations", new CreateInvitationRequest(email, role));
+        invited.StatusCode.ShouldBe(HttpStatusCode.Created);
+
+        var client = factory.CreateBareClient();
+        var token = factory.Emails.Last(email, "invitation").Token;
+        var accepted = await client.PostAsJsonAsync(
+            "/api/v1/invitations/accept",
+            new AcceptInvitationRequest(token, fullName, TestWorkspaces.DefaultPassword));
+        accepted.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var auth = (await accepted.Content.ReadFromJsonAsync<AuthResponse>(TestJson.Options))!;
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+        return new TestMember(client, auth.Session.User.Id, email, TestWorkspaces.DefaultPassword, accepted.ReadRefreshCookie()!);
+    }
+
+    public static async Task<T> ReadAsync<T>(this HttpResponseMessage response)
+    {
+        response.IsSuccessStatusCode.ShouldBeTrue($"{(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+        return (await response.Content.ReadFromJsonAsync<T>(TestJson.Options))!;
+    }
+
+    public static Task<T> GetAsync<T>(this HttpClient client, string url) =>
+        client.GetFromJsonAsync<T>(url, TestJson.Options)!;
+}
+
+public static class TestJson
+{
+    public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
+    };
+}

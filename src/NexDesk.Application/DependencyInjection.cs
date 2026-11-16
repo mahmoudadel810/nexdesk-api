@@ -2,6 +2,7 @@ using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using NexDesk.Application.Auth;
 using NexDesk.Application.Common;
+using NexDesk.Application.Users;
 
 namespace NexDesk.Application;
 
@@ -14,6 +15,7 @@ public static class DependencyInjection
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<SessionIssuer>();
         services.AddScoped<AuthEmails>();
+        services.AddScoped<InvitationMailer>();
 
         foreach (var implementation in assembly.GetTypes().Where(t => t is { IsClass: true, IsAbstract: false }))
         {

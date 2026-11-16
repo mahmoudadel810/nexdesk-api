@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using NexDesk.Api.Auth;
 using NexDesk.Api.Endpoints;
 using NexDesk.Api.Middleware;
@@ -30,6 +31,8 @@ builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = 
 });
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi("v1");
 
 builder.Services.AddHealthChecks()
@@ -77,6 +80,7 @@ v1.MapGet("/meta", () => TypedResults.Ok(new ApiMetadata("NexDesk API", "v1")))
     .WithSummary("Returns the API name and version.")
     .WithTags("Meta");
 v1.MapAuthEndpoints();
+v1.MapWorkspaceEndpoints();
 
 await app.RunAsync();
 

@@ -2,6 +2,7 @@ using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using NexDesk.Application.Common;
 using NexDesk.Domain.Identity;
+using NexDesk.Domain.Sla;
 using NexDesk.Domain.Tenants;
 
 namespace NexDesk.Application.Auth;
@@ -44,6 +45,7 @@ internal sealed class RegisterWorkspaceHandler(
     IAppDbContext db,
     IIdentityDirectory directory,
     IPasswordHasher passwordHasher,
+    ITenantScopeFactory tenantScopes,
     AuthEmails authEmails) : ICommandHandler<RegisterWorkspaceCommand, RegisterWorkspaceResult>
 {
     private const int MaxSlugSuffix = 50;
@@ -72,15 +74,19 @@ internal sealed class RegisterWorkspaceHandler(
         db.Users.Add(owner);
         var verification = authEmails.PrepareVerification(owner);
 
-        try
+        using (tenantScopes.Begin(tenant.Id))
         {
-            await db.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException)
-        {
-            return await directory.EmailExistsAsync(command.Email, cancellationToken)
-                ? AuthErrors.EmailTaken
-                : AuthErrors.SlugTaken;
+            db.BusinessHours.AddRange(BusinessHoursDay.DefaultWeek());
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException)
+            {
+                return await directory.EmailExistsAsync(command.Email, cancellationToken)
+                    ? AuthErrors.EmailTaken
+                    : AuthErrors.SlugTaken;
+            }
         }
 
         authEmails.Send(verification);

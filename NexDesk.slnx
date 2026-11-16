@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/NexDesk.Api/NexDesk.Api.csproj" />
+    <Project Path="src/NexDesk.Application/NexDesk.Application.csproj" />
+    <Project Path="src/NexDesk.Domain/NexDesk.Domain.csproj" />
+    <Project Path="src/NexDesk.Infrastructure/NexDesk.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/NexDesk.IntegrationTests/NexDesk.IntegrationTests.csproj" />
+    <Project Path="tests/NexDesk.UnitTests/NexDesk.UnitTests.csproj" />
+  </Folder>
+</Solution>

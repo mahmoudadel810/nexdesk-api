@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using NexDesk.Application.Common;
+using NexDesk.Domain.Sla;
 
 namespace NexDesk.Application.Sla;
 
@@ -72,10 +73,18 @@ internal sealed class UpdateBusinessHoursHandler(IAppDbContext db, ITenantContex
     {
         var tenant = await db.Tenants.FirstAsync(t => t.Id == tenantContext.TenantId, cancellationToken);
         var days = await db.BusinessHours.ToListAsync(cancellationToken);
-        foreach (var day in days)
+        foreach (var update in command.Days)
         {
-            var update = command.Days.First(d => d.Day == day.Day);
-            day.Set(update.IsWorkingDay, update.StartTime, update.EndTime);
+            var day = days.FirstOrDefault(d => d.Day == update.Day);
+            if (day is null)
+            {
+                db.BusinessHours.Add(BusinessHoursDay.Create(
+                    update.Day, update.IsWorkingDay, update.StartTime, update.EndTime));
+            }
+            else
+            {
+                day.Set(update.IsWorkingDay, update.StartTime, update.EndTime);
+            }
         }
 
         tenant.SetTimezone(command.Timezone);

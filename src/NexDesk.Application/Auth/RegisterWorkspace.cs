@@ -2,7 +2,7 @@ using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using NexDesk.Application.Common;
 using NexDesk.Domain.Identity;
-using NexDesk.Domain.Sla;
+using NexDesk.Application.Tenants;
 using NexDesk.Domain.Tenants;
 
 namespace NexDesk.Application.Auth;
@@ -46,6 +46,7 @@ internal sealed class RegisterWorkspaceHandler(
     IIdentityDirectory directory,
     IPasswordHasher passwordHasher,
     ITenantScopeFactory tenantScopes,
+    TenantProvisioner provisioner,
     AuthEmails authEmails) : ICommandHandler<RegisterWorkspaceCommand, RegisterWorkspaceResult>
 {
     private const int MaxSlugSuffix = 50;
@@ -76,7 +77,7 @@ internal sealed class RegisterWorkspaceHandler(
 
         using (tenantScopes.Begin(tenant.Id))
         {
-            db.BusinessHours.AddRange(BusinessHoursDay.DefaultWeek());
+            provisioner.AddDefaults();
             try
             {
                 await db.SaveChangesAsync(cancellationToken);

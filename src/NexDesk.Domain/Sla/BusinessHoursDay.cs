@@ -22,14 +22,19 @@ public sealed class BusinessHoursDay : Entity, ITenantOwned
     /// <summary>Monday to Friday, 09:00 to 17:00.</summary>
     public static IReadOnlyList<BusinessHoursDay> DefaultWeek() =>
     [
-        .. Enum.GetValues<DayOfWeek>().Select(day => new BusinessHoursDay
-        {
-            Day = day,
-            IsWorkingDay = day is not (DayOfWeek.Saturday or DayOfWeek.Sunday),
-            StartTime = new TimeOnly(9, 0),
-            EndTime = new TimeOnly(17, 0),
-        }),
+        .. Enum.GetValues<DayOfWeek>().Select(day => Create(
+            day,
+            day is not (DayOfWeek.Saturday or DayOfWeek.Sunday),
+            new TimeOnly(9, 0),
+            new TimeOnly(17, 0))),
     ];
+
+    public static BusinessHoursDay Create(DayOfWeek day, bool isWorkingDay, TimeOnly startTime, TimeOnly endTime)
+    {
+        var entry = new BusinessHoursDay { Day = day };
+        entry.Set(isWorkingDay, startTime, endTime);
+        return entry;
+    }
 
     public void Set(bool isWorkingDay, TimeOnly startTime, TimeOnly endTime)
     {

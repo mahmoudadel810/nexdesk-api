@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using NexDesk.Api.Endpoints;
 
 namespace NexDesk.Api.Middleware;
 
@@ -17,11 +18,13 @@ public sealed class GlobalExceptionHandler(
         {
             ValidationException validation => new ValidationProblemDetails(
                 validation.Errors
-                    .GroupBy(e => e.PropertyName)
+                    .GroupBy(e => ToCamelCasePath(e.PropertyName))
                     .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray()))
             {
                 Status = StatusCodes.Status400BadRequest,
                 Title = "One or more validation errors occurred.",
+                Type = ResultExtensions.ProblemTypeBase + "validation",
+                Extensions = { ["code"] = "validation" },
             },
             BadHttpRequestException badRequest => new ProblemDetails
             {
@@ -51,4 +54,8 @@ public sealed class GlobalExceptionHandler(
             Exception = exception,
         });
     }
+
+    private static string ToCamelCasePath(string propertyPath) => string.Join(
+        '.',
+        propertyPath.Split('.').Select(part => part.Length == 0 ? part : char.ToLowerInvariant(part[0]) + part[1..]));
 }

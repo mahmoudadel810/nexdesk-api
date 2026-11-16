@@ -74,3 +74,6 @@ dotnet test tests/NexDesk.UnitTests
 dotnet test tests/NexDesk.IntegrationTests
 dotnet format --verify-no-changes
 ```
+
+`scripts/verify.sh` runs the whole set (build with warnings as errors, both test projects and the
+format check) and stops at the first failure. Every branch passes it before it is merged.

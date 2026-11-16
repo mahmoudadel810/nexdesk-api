@@ -299,5 +299,8 @@ groups from their token; events are `ticketCreated`, `ticketUpdated`, `ticketAss
 
 ## 6. Build order
 
-Phases follow the order in the project brief (0–15), one or more pull requests per phase, each
-paired across `nexdesk-api` and `nexdesk-web` when both are touched.
+Phases follow the order in the project brief (0–15). Each phase is built on a `feature/<name>`
+branch in `nexdesk-api` and, when the UI is touched, a branch of the same name in `nexdesk-web`.
+Before a branch is merged into `main`, the full check set runs locally: build with warnings as
+errors, unit and integration tests and `dotnet format --verify-no-changes` for the API; lint,
+format check, unit tests and a production build for the web client.

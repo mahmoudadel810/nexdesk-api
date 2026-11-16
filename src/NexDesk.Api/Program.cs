@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using NexDesk.Api.Auth;
 using NexDesk.Api.Endpoints;
 using NexDesk.Api.Middleware;
+using NexDesk.Api.OpenApi;
 using NexDesk.Application;
 using NexDesk.Infrastructure;
 using NexDesk.Infrastructure.Persistence;
@@ -33,7 +34,7 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
-builder.Services.AddOpenApi("v1");
+builder.Services.AddNexDeskOpenApi();
 
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<AppDbContext>("postgres", tags: [HealthEndpoints.ReadyTag]);

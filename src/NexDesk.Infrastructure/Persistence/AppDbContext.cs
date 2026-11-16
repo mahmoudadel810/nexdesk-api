@@ -51,6 +51,12 @@ public sealed class AppDbContext(
 
     public DbSet<Attachment> Attachments => Set<Attachment>();
 
+    public DbSet<CustomField> CustomFields => Set<CustomField>();
+
+    public DbSet<SavedView> SavedViews => Set<SavedView>();
+
+    public void DiscardChanges() => ChangeTracker.Clear();
+
     private Guid? CurrentTenantId => tenant.TenantId;
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

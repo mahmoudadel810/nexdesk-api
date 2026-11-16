@@ -27,7 +27,8 @@ public sealed record CreateTicketCommand(
     Guid? AssigneeId,
     Guid? TeamId,
     IReadOnlyCollection<string>? Tags,
-    IReadOnlyCollection<Guid>? AttachmentIds) : ICommand<TicketDetailDto>;
+    IReadOnlyCollection<Guid>? AttachmentIds,
+    IReadOnlyDictionary<string, string?>? CustomFields = null) : ICommand<TicketDetailDto>;
 
 internal sealed class CreateTicketValidator : AbstractValidator<CreateTicketCommand>
 {
@@ -46,11 +47,21 @@ internal sealed class CreateTicketValidator : AbstractValidator<CreateTicketComm
     }
 }
 
-internal sealed class CreateTicketHandler(IAppDbContext db, ICurrentUser currentUser, TicketWriter writer)
-    : ICommandHandler<CreateTicketCommand, TicketDetailDto>
+internal sealed class CreateTicketHandler(
+    IAppDbContext db,
+    ICurrentUser currentUser,
+    TicketWriter writer,
+    CustomFieldValues customFields) : ICommandHandler<CreateTicketCommand, TicketDetailDto>
 {
     public async Task<Result<TicketDetailDto>> Handle(CreateTicketCommand command, CancellationToken cancellationToken)
     {
+        var fields = await customFields.ValidateAsync(
+            command.CustomFields, enforceRequired: true, existing: null, cancellationToken);
+        if (!fields.IsSuccess)
+        {
+            return fields.Error;
+        }
+
         var draft = new TicketDraft(
             command.Subject,
             command.Description,
@@ -62,7 +73,8 @@ internal sealed class CreateTicketHandler(IAppDbContext db, ICurrentUser current
             command.AssigneeId,
             command.TeamId,
             command.Tags,
-            command.AttachmentIds);
+            command.AttachmentIds,
+            fields.Value.Values);
         var created = await writer.CreateAsync(draft, currentUser.AsActor(), TicketChannel.Agent, cancellationToken);
         if (!created.IsSuccess)
         {
@@ -80,7 +92,9 @@ public sealed record UpdateTicketCommand(
     TicketStatus? Status,
     TicketPriority? Priority,
     TicketType? Type,
-    IReadOnlyCollection<string>? Tags) : ICommand<TicketDetailDto>;
+    IReadOnlyCollection<string>? Tags,
+    IReadOnlyDictionary<string, string?>? CustomFields = null,
+    uint? Version = null) : ICommand<TicketDetailDto>;
 
 internal sealed class UpdateTicketValidator : AbstractValidator<UpdateTicketCommand>
 {
@@ -94,8 +108,11 @@ internal sealed class UpdateTicketValidator : AbstractValidator<UpdateTicketComm
     }
 }
 
-internal sealed class UpdateTicketHandler(IAppDbContext db, ICurrentUser currentUser, TimeProvider clock)
-    : ICommandHandler<UpdateTicketCommand, TicketDetailDto>
+internal sealed class UpdateTicketHandler(
+    IAppDbContext db,
+    ICurrentUser currentUser,
+    CustomFieldValues customFields,
+    TimeProvider clock) : ICommandHandler<UpdateTicketCommand, TicketDetailDto>
 {
     public async Task<Result<TicketDetailDto>> Handle(UpdateTicketCommand command, CancellationToken cancellationToken)
     {
@@ -105,6 +122,11 @@ internal sealed class UpdateTicketHandler(IAppDbContext db, ICurrentUser current
             return TicketErrors.NotFound;
         }
 
+        if (command.Version is { } version && version != ticket.Version)
+        {
+            return TicketErrors.Stale;
+        }
+
         if (ticket.IsClosed)
         {
             return TicketErrors.Closed;
@@ -112,6 +134,18 @@ internal sealed class UpdateTicketHandler(IAppDbContext db, ICurrentUser current
 
         var actor = currentUser.AsActor();
         var now = clock.GetUtcNow();
+        if (command.CustomFields is not null)
+        {
+            var fields = await customFields.ValidateAsync(
+                command.CustomFields, enforceRequired: true, ticket.CustomFields, cancellationToken);
+            if (!fields.IsSuccess)
+            {
+                return fields.Error;
+            }
+
+            ticket.SetCustomFields(fields.Value.Values, fields.Value.Labels, actor, now);
+        }
+
         if (command.Subject is not null)
         {
             ticket.Rename(command.Subject, actor, now);
@@ -138,12 +172,21 @@ internal sealed class UpdateTicketHandler(IAppDbContext db, ICurrentUser current
             ticket.ChangeStatus(status, actor, now);
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return TicketErrors.Stale;
+        }
+
         return (await TicketQueries.LoadDetail(db, ticket.Id, currentUser.UserId, cancellationToken))!;
     }
 }
 
-public sealed record AssignTicketCommand(Guid TicketId, Guid? AssigneeId, Guid? TeamId) : ICommand<TicketDetailDto>;
+public sealed record AssignTicketCommand(Guid TicketId, Guid? AssigneeId, Guid? TeamId, uint? Version = null)
+    : ICommand<TicketDetailDto>;
 
 internal sealed class AssignTicketHandler(
     IAppDbContext db,
@@ -158,6 +201,11 @@ internal sealed class AssignTicketHandler(
         if (ticket is null)
         {
             return TicketErrors.NotFound;
+        }
+
+        if (command.Version is { } version && version != ticket.Version)
+        {
+            return TicketErrors.Stale;
         }
 
         if (ticket.IsClosed)
@@ -183,7 +231,15 @@ internal sealed class AssignTicketHandler(
         ticket.RouteTo(command.TeamId, assignment.Value.TeamName, previousTeam, actor, now);
         ticket.AssignTo(command.AssigneeId, assignment.Value.AssigneeName, previousAssignee, actor, now);
 
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return TicketErrors.Stale;
+        }
+
         return (await TicketQueries.LoadDetail(db, ticket.Id, currentUser.UserId, cancellationToken))!;
     }
 }
@@ -210,9 +266,10 @@ internal sealed class AddTicketMessageHandler(
     TicketWriter writer,
     TimeProvider clock) : ICommandHandler<AddTicketMessageCommand, TicketDetailDto>
 {
-    public async Task<Result<TicketDetailDto>> Handle(
-        AddTicketMessageCommand command,
-        CancellationToken cancellationToken)
+    public Task<Result<TicketDetailDto>> Handle(AddTicketMessageCommand command, CancellationToken cancellationToken) =>
+        Concurrency.RetryAsync(db, () => Attempt(command, cancellationToken));
+
+    private async Task<Result<TicketDetailDto>> Attempt(AddTicketMessageCommand command, CancellationToken cancellationToken)
     {
         var ticket = await db.Tickets.Include(t => t.Watchers)
             .FirstOrDefaultAsync(t => t.Id == command.TicketId, cancellationToken);

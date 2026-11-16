@@ -20,6 +20,7 @@ public static class DependencyInjection
         services.AddScoped<InvitationMailer>();
         services.AddScoped<TenantProvisioner>();
         services.AddScoped<TicketWriter>();
+        services.AddScoped<CustomFieldValues>();
 
         foreach (var implementation in assembly.GetTypes().Where(t => t is { IsClass: true, IsAbstract: false }))
         {

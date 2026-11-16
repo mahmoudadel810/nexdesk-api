@@ -18,7 +18,8 @@ public sealed record TicketDraft(
     Guid? AssigneeId,
     Guid? TeamId,
     IReadOnlyCollection<string>? Tags,
-    IReadOnlyCollection<Guid>? AttachmentIds);
+    IReadOnlyCollection<Guid>? AttachmentIds,
+    IReadOnlyDictionary<string, string?>? CustomFields = null);
 
 /// <summary>
 /// Creates tickets and messages for every channel (agent, portal, email, API), so numbering, requester
@@ -64,6 +65,11 @@ public sealed class TicketWriter(IAppDbContext db, ITicketNumberAllocator number
             draft.Tags,
             actor,
             now);
+        if (draft.CustomFields is not null)
+        {
+            ticket.InitializeCustomFields(draft.CustomFields);
+        }
+
         ticket.RouteTo(draft.TeamId, assignment.Value.TeamName, null, actor, now);
         ticket.AssignTo(draft.AssigneeId, assignment.Value.AssigneeName, null, actor, now);
         if (actor is { Type: ActorType.Staff, Id: { } staffId })

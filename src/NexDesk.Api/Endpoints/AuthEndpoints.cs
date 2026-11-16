@@ -166,7 +166,7 @@ public static class AuthEndpoints
         return api;
     }
 
-    private static IResult SignIn(HttpContext http, Result<AuthTokens> result)
+    internal static IResult SignIn(HttpContext http, Result<AuthTokens> result)
     {
         if (!result.IsSuccess)
         {
@@ -189,7 +189,7 @@ public static class AuthEndpoints
     private static void ClearRefreshCookie(HttpContext http) =>
         http.Response.Cookies.Delete(RefreshCookie, new CookieOptions { Path = RefreshCookiePath });
 
-    private static string? UserAgent(HttpContext http) => http.Request.Headers.UserAgent.ToString() is { Length: > 0 } ua
+    internal static string? UserAgent(HttpContext http) => http.Request.Headers.UserAgent.ToString() is { Length: > 0 } ua
         ? ua
         : null;
 }

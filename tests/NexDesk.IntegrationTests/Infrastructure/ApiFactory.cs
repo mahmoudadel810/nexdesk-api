@@ -21,6 +21,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         .Build();
 
     public const string InboundSecret = "integration-tests-inbound-secret";
+    public const string PlatformAdminEmail = "platform-admin@nexdesk.test";
+    public const string PlatformAdminPassword = "Integration-admin-123";
 
     public CapturedEmails Emails { get; } = new();
 
@@ -52,6 +54,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("Jobs:RecurringEnabled", "false");
         builder.UseSetting("RateLimiting:Enabled", "false");
         builder.UseSetting("Inbound:Secret", InboundSecret);
+        builder.UseSetting("PlatformAdmin:Email", PlatformAdminEmail);
+        builder.UseSetting("PlatformAdmin:Password", PlatformAdminPassword);
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton<IStartupFilter, LoopbackAddressFilter>();

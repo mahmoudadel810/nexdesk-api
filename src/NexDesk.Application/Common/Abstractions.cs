@@ -109,6 +109,9 @@ public interface ICurrentUser
 
     /// <summary>The API key a public API request is made with. Such requests have no user.</summary>
     Guid? ApiKeyId => null;
+
+    /// <summary>Whether the user runs the platform rather than belonging to a workspace.</summary>
+    bool IsPlatformAdmin => false;
 }
 
 /// <summary>Where the current request comes from. Empty outside a request, such as in background jobs.</summary>

@@ -16,6 +16,7 @@ public sealed partial class Tenant : AuditableEntity
     public const int SlugMinLength = 3;
     public const int SlugMaxLength = 40;
     public const int WelcomeTextMaxLength = 1000;
+    public const int SuspensionReasonMaxLength = 500;
     public const long LogoMaxSizeBytes = 512 * 1024;
 
     public static IReadOnlyList<string> Languages { get; } = ["en", "ar"];
@@ -40,6 +41,11 @@ public sealed partial class Tenant : AuditableEntity
     public string DefaultLanguage { get; private set; } = "en";
 
     public DateTimeOffset? OnboardingCompletedAt { get; private set; }
+
+    public DateTimeOffset? SuspendedAt { get; private set; }
+
+    /// <summary>Why the platform closed the workspace, for the platform team's records.</summary>
+    public string? SuspensionReason { get; private set; }
 
     /// <summary>The portal's accent colour as <c>#rrggbb</c>, or null for NexDesk's own.</summary>
     public string? BrandColor { get; private set; }
@@ -136,9 +142,20 @@ public sealed partial class Tenant : AuditableEntity
 
     public void CompleteOnboarding(DateTimeOffset now) => OnboardingCompletedAt ??= now;
 
-    public void Suspend() => Status = TenantStatus.Suspended;
+    /// <summary>Closes the workspace to its team, customers and integrations. Nothing is deleted.</summary>
+    public void Suspend(string? reason, DateTimeOffset now)
+    {
+        Status = TenantStatus.Suspended;
+        SuspendedAt ??= now;
+        SuspensionReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+    }
 
-    public void Reactivate() => Status = TenantStatus.Active;
+    public void Reactivate()
+    {
+        Status = TenantStatus.Active;
+        SuspendedAt = null;
+        SuspensionReason = null;
+    }
 
     [GeneratedRegex("^[a-z0-9]+(-[a-z0-9]+)*$")]
     private static partial Regex SlugPattern();

@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.HttpOverrides;
+using NexDesk.Api;
 using NexDesk.Api.Admin;
 using NexDesk.Api.Auth;
 using NexDesk.Api.Endpoints;
@@ -11,6 +12,7 @@ using NexDesk.Application;
 using NexDesk.Application.Common;
 using NexDesk.Infrastructure;
 using NexDesk.Infrastructure.Persistence;
+using NexDesk.Infrastructure.Seeding;
 using Npgsql;
 using OpenTelemetry;
 using OpenTelemetry.Resources;
@@ -74,11 +76,23 @@ if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOIN
     tracing.UseOtlpExporter();
 }
 
+// `--seed` (optionally `--seed=small`) fills the database with demo data and exits instead of serving.
+var seedSize = DemoSeedCommand.Parse(args);
+if (seedSize is not null)
+{
+    builder.Services.AddDemoSeeding();
+}
+
 var app = builder.Build();
 
 if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
 {
     await app.Services.MigrateDatabaseAsync();
+}
+
+if (seedSize is { } size)
+{
+    return await DemoSeedCommand.RunAsync(app, size, args);
 }
 
 app.UseForwardedHeaders();
@@ -123,5 +137,6 @@ v1.MapPortalEndpoints();
 app.MapHub<NotificationsHub>(NotificationsHub.Path);
 
 await app.RunAsync();
+return 0;
 
 public sealed record ApiMetadata(string Name, string Version);

@@ -75,6 +75,21 @@ public sealed class BusinessCalendarTests
         Weekdays(Cairo).AddBusinessMinutes(At(2026, 11, 16, 16), 60).ShouldBe(At(2026, 11, 17, 8));
     }
 
+    [Theory]
+    [InlineData("Africa/Cairo")]
+    [InlineData("Asia/Tokyo")]
+    [InlineData("America/New_York")]
+    public void Deadlines_are_utc_instants_whatever_zone_the_calendar_keeps_time_in(string zoneId)
+    {
+        var zone = TimeZoneInfo.FindSystemTimeZoneById(zoneId);
+        var localStart = new DateTimeOffset(2026, 11, 16, 10, 0, 0, zone.GetUtcOffset(new DateTime(2026, 11, 16, 10, 0, 0)));
+
+        // The database only stores UTC timestamps, so a deadline carrying a local offset could not be saved.
+        Weekdays(zone).AddBusinessMinutes(localStart, 90).Offset.ShouldBe(TimeSpan.Zero);
+        Weekdays(zone).AddBusinessMinutes(localStart, 2000).Offset.ShouldBe(TimeSpan.Zero);
+        new BusinessCalendar(zone, [], []).AddBusinessMinutes(localStart, 90).Offset.ShouldBe(TimeSpan.Zero);
+    }
+
     [Fact]
     public void Respects_a_sunday_to_thursday_week()
     {

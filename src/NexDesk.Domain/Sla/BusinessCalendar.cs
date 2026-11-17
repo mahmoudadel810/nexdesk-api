@@ -32,7 +32,7 @@ public sealed class BusinessCalendar
     {
         if (!HasWorkingTime)
         {
-            return start.AddMinutes(Math.Max(0, minutes));
+            return start.AddMinutes(Math.Max(0, minutes)).ToUniversalTime();
         }
 
         var remaining = TimeSpan.FromMinutes(Math.Max(0, minutes));
@@ -114,6 +114,7 @@ public sealed class BusinessCalendar
             unspecified = unspecified.AddMinutes(30);
         }
 
-        return new DateTimeOffset(unspecified, _zone.GetUtcOffset(unspecified));
+        // Deadlines are stored and compared as UTC instants, whatever zone the calendar keeps time in.
+        return new DateTimeOffset(unspecified, _zone.GetUtcOffset(unspecified)).ToUniversalTime();
     }
 }

@@ -76,6 +76,8 @@ public sealed class AppDbContext(
 
     public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
 
+    public DbSet<Device> Devices => Set<Device>();
+
     public DbSet<KbCategory> KbCategories => Set<KbCategory>();
 
     public DbSet<KbArticle> KbArticles => Set<KbArticle>();

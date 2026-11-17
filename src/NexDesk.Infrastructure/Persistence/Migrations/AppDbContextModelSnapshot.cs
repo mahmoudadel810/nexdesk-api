@@ -1261,6 +1261,83 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                     b.ToTable("kb_categories", (string)null);
                 });
 
+            modelBuilder.Entity("NexDesk.Domain.Notifications.Device", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AppVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("app_version");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("InstallationId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("installation_id");
+
+                    b.Property<DateTimeOffset>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_seen_at");
+
+                    b.Property<string>("Locale")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("locale");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("platform");
+
+                    b.Property<string>("PushToken")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("push_token");
+
+                    b.Property<Guid>("RefreshFamilyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("refresh_family_id");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_devices");
+
+                    b.HasIndex("PushToken")
+                        .IsUnique()
+                        .HasDatabaseName("ix_devices_push_token");
+
+                    b.HasIndex("RefreshFamilyId")
+                        .HasDatabaseName("ix_devices_refresh_family_id");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_devices_tenant_id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_devices_user_id");
+
+                    b.HasIndex("TenantId", "UserId", "InstallationId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_devices_tenant_id_user_id_installation_id");
+
+                    b.ToTable("devices", (string)null);
+                });
+
             modelBuilder.Entity("NexDesk.Domain.Notifications.Notification", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1346,6 +1423,10 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                     b.Property<bool>("InApp")
                         .HasColumnType("boolean")
                         .HasColumnName("in_app");
+
+                    b.Property<bool>("Push")
+                        .HasColumnType("boolean")
+                        .HasColumnName("push");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid")
@@ -2521,6 +2602,23 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_kb_categories_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Notifications.Device", b =>
+                {
+                    b.HasOne("NexDesk.Domain.Tenants.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_devices_tenants_tenant_id");
+
+                    b.HasOne("NexDesk.Domain.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_devices_users_user_id");
                 });
 
             modelBuilder.Entity("NexDesk.Domain.Notifications.Notification", b =>

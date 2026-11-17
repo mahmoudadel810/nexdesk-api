@@ -19,6 +19,7 @@ using NexDesk.Infrastructure.Identity;
 using NexDesk.Infrastructure.KnowledgeBase;
 using NexDesk.Infrastructure.Persistence;
 using NexDesk.Infrastructure.Platform;
+using NexDesk.Infrastructure.Push;
 using NexDesk.Infrastructure.Reports;
 using NexDesk.Infrastructure.Sla;
 using NexDesk.Infrastructure.Tenancy;
@@ -80,6 +81,7 @@ public static class DependencyInjection
         services.AddScoped<IEmailSender, SmtpEmailSender>();
         services.AddScoped<IEmailDispatcher, HangfireEmailDispatcher>();
         services.AddScoped<SendEmailJob>();
+        services.AddPushNotifications(configuration);
 
         services.AddHangfire(hangfire => hangfire
             .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)

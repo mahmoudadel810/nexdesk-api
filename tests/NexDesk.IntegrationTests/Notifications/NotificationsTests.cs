@@ -155,19 +155,19 @@ public sealed class NotificationsTests(ApiFactory factory)
 
         var defaults = await agent.Client.GetAsync<List<NotificationPreferenceDto>>("/api/v1/notifications/preferences");
         defaults.Select(p => p.Type).ShouldBe(Enum.GetValues<NotificationType>());
-        defaults.ShouldAllBe(p => p.InApp && p.Email);
+        defaults.ShouldAllBe(p => p.InApp && p.Email && p.Push);
 
         var saved = await (await agent.Client.PutAsJsonAsync(
             "/api/v1/notifications/preferences",
             new UpdateNotificationPreferencesRequest(
             [
-                new NotificationPreferenceDto(NotificationType.TicketAssigned, InApp: false, Email: true),
-                new NotificationPreferenceDto(NotificationType.TicketReply, InApp: true, Email: false),
+                new NotificationPreferenceInput(NotificationType.TicketAssigned, InApp: false, Email: true),
+                new NotificationPreferenceInput(NotificationType.TicketReply, InApp: true, Email: false),
             ]),
             TestJson.Options)).ReadAsync<List<NotificationPreferenceDto>>();
         saved.Single(p => p.Type == NotificationType.TicketAssigned).InApp.ShouldBeFalse();
         saved.Single(p => p.Type == NotificationType.SlaBreach).ShouldBe(
-            new NotificationPreferenceDto(NotificationType.SlaBreach, true, true));
+            new NotificationPreferenceDto(NotificationType.SlaBreach, true, true, true));
 
         var ticket = await workspace.Client.CreateTicketAsync(TestTickets.NewTicket(assigneeId: agent.UserId));
         (await Inbox(agent.Client)).TotalCount.ShouldBe(0);
@@ -184,8 +184,8 @@ public sealed class NotificationsTests(ApiFactory factory)
             "/api/v1/notifications/preferences",
             new UpdateNotificationPreferencesRequest(
             [
-                new NotificationPreferenceDto(NotificationType.TicketReply, true, true),
-                new NotificationPreferenceDto(NotificationType.TicketReply, false, false),
+                new NotificationPreferenceInput(NotificationType.TicketReply, true, true),
+                new NotificationPreferenceInput(NotificationType.TicketReply, false, false),
             ]),
             TestJson.Options)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }

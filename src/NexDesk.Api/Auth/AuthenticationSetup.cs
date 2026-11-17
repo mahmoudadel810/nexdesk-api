@@ -17,6 +17,11 @@ internal sealed class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser,
     public bool IsPlatformAdmin =>
         UserId is not null && accessor.HttpContext?.User.FindFirst(NexDeskClaims.PlatformAdmin)?.Value == "true";
 
+    public Guid? SessionId =>
+        UserId is not null && Guid.TryParse(accessor.HttpContext?.User.FindFirst(NexDeskClaims.SessionId)?.Value, out var id)
+            ? id
+            : null;
+
     public Guid? ApiKeyId
     {
         get

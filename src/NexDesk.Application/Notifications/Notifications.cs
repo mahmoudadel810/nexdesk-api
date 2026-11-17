@@ -25,17 +25,22 @@ public sealed record NotificationDto(
         n.Id, n.Type, n.TicketId, n.TicketNumber, n.TicketSubject, n.ActorName, n.Preview, n.CreatedAt, n.ReadAt is not null);
 }
 
-public sealed record NotificationPreferenceDto(NotificationType Type, bool InApp, bool Email);
+public sealed record NotificationPreferenceDto(NotificationType Type, bool InApp, bool Email, bool Push);
+
+/// <summary>A change to one notification type. Leaving <paramref name="Push"/> out keeps the stored choice.</summary>
+public sealed record NotificationPreferenceInput(NotificationType Type, bool InApp, bool Email, bool? Push = null);
 
 /// <summary>
-/// Creates in-app notifications, queues notification emails and pushes both to connected browsers.
-/// Recipients who switched a kind of notification off are skipped for that channel.
+/// Creates in-app notifications, queues notification emails and phone pushes, and pushes the in-app ones to
+/// connected browsers. Recipients who switched a kind of notification off are skipped for that channel; each
+/// channel is decided on its own, so a phone can buzz for something that does not go to the bell.
 /// </summary>
 public sealed class Notifier(
     IAppDbContext db,
     ITenantContext tenant,
     IRealtimeNotifier realtime,
     IEmailDispatcher emails,
+    IPushDispatcher pushes,
     TimeProvider clock,
     IOptions<AppOptions> appOptions)
 {
@@ -63,6 +68,7 @@ public sealed class Notifier(
 
         var now = clock.GetUtcNow();
         var created = new List<Notification>();
+        var queued = new List<PushMessage>();
         foreach (var recipient in recipients)
         {
             var preference = preferences.GetValueOrDefault(recipient.Id);
@@ -91,6 +97,12 @@ public sealed class Notifier(
                         ["link"] = $"{appOptions.Value.WebBaseUrl.TrimEnd('/')}/app/tickets/{ticket.Id}",
                     }));
             }
+
+            if (preference?.Push != false && tenant.TenantId is { } tenantId)
+            {
+                queued.Add(new PushMessage(
+                    tenantId, recipient.Id, type, ticket.Id, ticket.Number, ticket.Subject, actorName, recipient.Language));
+            }
         }
 
         if (created.Count > 0)
@@ -100,6 +112,12 @@ public sealed class Notifier(
             {
                 await realtime.NotificationAsync(notification.UserId, NotificationDto.From(notification), cancellationToken);
             }
+        }
+
+        // After the save, so the badge on the phone already counts this notification.
+        foreach (var message in queued)
+        {
+            pushes.Enqueue(message);
         }
     }
 
@@ -411,7 +429,7 @@ internal sealed class GetNotificationPreferencesHandler(IAppDbContext db, ICurre
         await PreferenceQueries.Load(db, currentUser.RequireUserId(), cancellationToken);
 }
 
-public sealed record UpdateNotificationPreferencesCommand(IReadOnlyList<NotificationPreferenceDto> Preferences)
+public sealed record UpdateNotificationPreferencesCommand(IReadOnlyList<NotificationPreferenceInput> Preferences)
     : ICommand<IReadOnlyList<NotificationPreferenceDto>>;
 
 internal sealed class UpdateNotificationPreferencesValidator : AbstractValidator<UpdateNotificationPreferencesCommand>
@@ -441,12 +459,12 @@ internal sealed class UpdateNotificationPreferencesHandler(IAppDbContext db, ICu
         {
             if (existing.TryGetValue(update.Type, out var preference))
             {
-                preference.Set(update.InApp, update.Email);
+                preference.Set(update.InApp, update.Email, update.Push);
             }
             else
             {
                 db.NotificationPreferences.Add(
-                    NotificationPreference.Create(userId, update.Type, update.InApp, update.Email));
+                    NotificationPreference.Create(userId, update.Type, update.InApp, update.Email, update.Push));
             }
         }
 
@@ -457,7 +475,7 @@ internal sealed class UpdateNotificationPreferencesHandler(IAppDbContext db, ICu
 
 internal static class PreferenceQueries
 {
-    /// <summary>One entry per notification type; types without a stored choice default to on for both channels.</summary>
+    /// <summary>One entry per notification type; types without a stored choice default to on for every channel.</summary>
     public static async Task<List<NotificationPreferenceDto>> Load(
         IAppDbContext db,
         Guid userId,
@@ -468,8 +486,8 @@ internal static class PreferenceQueries
             .ToDictionaryAsync(p => p.Type, cancellationToken);
         return Enum.GetValues<NotificationType>()
             .Select(type => stored.TryGetValue(type, out var preference)
-                ? new NotificationPreferenceDto(type, preference.InApp, preference.Email)
-                : new NotificationPreferenceDto(type, true, true))
+                ? new NotificationPreferenceDto(type, preference.InApp, preference.Email, preference.Push)
+                : new NotificationPreferenceDto(type, true, true, true))
             .ToList();
     }
 }

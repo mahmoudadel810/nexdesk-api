@@ -59,6 +59,25 @@ internal sealed class NotificationPreferenceConfiguration : IEntityTypeConfigura
     }
 }
 
+internal sealed class DeviceConfiguration : IEntityTypeConfiguration<Device>
+{
+    public void Configure(EntityTypeBuilder<Device> builder)
+    {
+        builder.ToTable("devices");
+        builder.Property(d => d.Id).ValueGeneratedNever();
+        builder.Property(d => d.InstallationId).HasMaxLength(Device.InstallationIdMaxLength);
+        builder.Property(d => d.PushToken).HasMaxLength(Device.PushTokenMaxLength);
+        builder.Property(d => d.AppVersion).HasMaxLength(Device.AppVersionMaxLength);
+        builder.Property(d => d.Locale).HasMaxLength(Device.LocaleMaxLength);
+        builder.Property(d => d.Platform).HasConversion<string>().HasMaxLength(16);
+        builder.HasIndex(d => new { d.TenantId, d.UserId, d.InstallationId }).IsUnique();
+        builder.HasIndex(d => d.PushToken).IsUnique();
+        builder.HasIndex(d => d.RefreshFamilyId);
+        builder.HasOne<Tenant>().WithMany().HasForeignKey(d => d.TenantId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<User>().WithMany().HasForeignKey(d => d.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
 internal sealed class SlaPolicyConfiguration : IEntityTypeConfiguration<SlaPolicy>
 {
     public void Configure(EntityTypeBuilder<SlaPolicy> builder)

@@ -294,6 +294,12 @@ public sealed class CleanupJob(IServiceScopeFactory scopes, TimeProvider clock, 
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
+        // Phones whose sign-in has ended get no pushes anyway; their rows go before the tokens that prove it.
+        var devices = await db.Devices
+            .IgnoreQueryFilters()
+            .Where(d => !db.RefreshTokens.Any(t => t.FamilyId == d.RefreshFamilyId && t.RevokedAt == null && t.ExpiresAt > now))
+            .ExecuteDeleteAsync(cancellationToken);
+
         var tokenCutoff = now - TokenGrace;
         var refreshTokens = await db.RefreshTokens
             .Where(t => t.ExpiresAt < tokenCutoff)
@@ -322,8 +328,9 @@ public sealed class CleanupJob(IServiceScopeFactory scopes, TimeProvider clock, 
             .ExecuteDeleteAsync(cancellationToken);
 
         logger.LogInformation(
-            "Cleanup removed {RefreshTokens} refresh tokens, {OneTimeTokens} one-time tokens, {Invitations} invitations, "
-            + "{Executions} automation log entries and {Deliveries} webhook deliveries",
+            "Cleanup removed {Devices} signed-out devices, {RefreshTokens} refresh tokens, {OneTimeTokens} one-time tokens, "
+            + "{Invitations} invitations, {Executions} automation log entries and {Deliveries} webhook deliveries",
+            devices,
             refreshTokens,
             oneTimeTokens,
             invitations,

@@ -96,8 +96,10 @@ public static class OpenApiSetup
         ]),
         [typeof(UpdateNotificationPreferencesRequest)] = new UpdateNotificationPreferencesRequest(
         [
-            new NotificationPreferenceDto(NotificationType.TicketNote, InApp: true, Email: false),
+            new NotificationPreferenceInput(NotificationType.TicketNote, InApp: true, Email: false, Push: true),
         ]),
+        [typeof(RegisterDeviceRequest)] = new RegisterDeviceRequest(
+            NexDesk.Domain.Notifications.DevicePlatform.Android, "fcm-registration-token", "1.0.0+1", "ar"),
         [typeof(PortalRegisterRequest)] = new PortalRegisterRequest("Casey Customer", "casey@customer.example"),
         [typeof(PortalTicketRequest)] = new PortalTicketRequest(
             "Cannot download my invoice", "The download button on the billing page shows an error since this morning."),

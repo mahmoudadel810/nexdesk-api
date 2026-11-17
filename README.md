@@ -482,6 +482,7 @@ Secrets such as password and key hashes are never copied into it.
 | `RateLimiting__Enabled` (`RATE_LIMITING_ENABLED` in `.env`) | `true` | `false` turns off every request limit: per address, per member and API key by plan, and sign-in attempts. For long E2E runs and load tests; leave it on anywhere the public can reach. |
 | `RateLimiting__AuthPerMinute` (`AUTH_RATE_LIMIT_PER_MINUTE`) | `10` | Sign-in, sign-up and password requests per minute from one address. |
 | `Email__LogOnly` | `false` | `true` logs each email's kind and the recipient's domain instead of sending it, for hosts without a mail server. |
+| `Push__Provider` | `Log` | Phone pushes for the mobile app. `Log` writes one line per push; `Fcm` sends through Firebase Cloud Messaging and needs `Push__Fcm__ProjectId` and `Push__Fcm__ServiceAccountJson`. Pushes carry the event, ticket number and subject, never the text of a reply or note, and only reach phones whose sign-in is still valid. |
 
 ## Hosted demo: Supabase, Render and Vercel
 

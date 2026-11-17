@@ -61,6 +61,8 @@ public interface IAppDbContext
 
     DbSet<NotificationPreference> NotificationPreferences { get; }
 
+    DbSet<Device> Devices { get; }
+
     DbSet<KbCategory> KbCategories { get; }
 
     DbSet<KbArticle> KbArticles { get; }
@@ -112,6 +114,9 @@ public interface ICurrentUser
 
     /// <summary>Whether the user runs the platform rather than belonging to a workspace.</summary>
     bool IsPlatformAdmin => false;
+
+    /// <summary>The sign-in (refresh-token family) the access token was issued for, when it says.</summary>
+    Guid? SessionId => null;
 }
 
 /// <summary>Where the current request comes from. Empty outside a request, such as in background jobs.</summary>
@@ -228,4 +233,23 @@ public sealed record EmailMessage(
 public interface IEmailDispatcher
 {
     void Enqueue(EmailMessage message);
+}
+
+/// <summary>
+/// One push notification for one person, sent to each of their phones by a background job. It holds only what
+/// may appear on a locked screen: never the text of a reply or note.
+/// </summary>
+public sealed record PushMessage(
+    Guid TenantId,
+    Guid UserId,
+    NexDesk.Domain.Notifications.NotificationType Type,
+    Guid TicketId,
+    int TicketNumber,
+    string TicketSubject,
+    string? ActorName,
+    string Language);
+
+public interface IPushDispatcher
+{
+    void Enqueue(PushMessage message);
 }

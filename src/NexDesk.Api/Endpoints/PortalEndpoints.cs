@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using NexDesk.Api.Auth;
+using NexDesk.Api.RateLimiting;
 using NexDesk.Application.Common;
 using NexDesk.Application.Inbound;
 using NexDesk.Application.Portal;
@@ -74,7 +75,9 @@ public static class PortalEndpoints
 
     private static void MapAuth(RouteGroupBuilder auth)
     {
-        auth.MapPost("/register", async (
+        var guarded = auth.MapGroup(string.Empty).RequireRateLimiting(RateLimitingSetup.AuthPolicy);
+
+        guarded.MapPost("/register", async (
             PortalRegisterRequest request,
             ICommandHandler<PortalRegisterCommand, Success> handler,
             CancellationToken ct) =>
@@ -86,7 +89,7 @@ public static class PortalEndpoints
             .Produces(StatusCodes.Status202Accepted)
             .ProducesValidationProblem();
 
-        auth.MapPost("/login", async (
+        guarded.MapPost("/login", async (
             string slug,
             LoginRequest request,
             HttpContext http,
@@ -134,7 +137,7 @@ public static class PortalEndpoints
             .WithSummary("Ends the customer's session.")
             .Produces(StatusCodes.Status204NoContent);
 
-        auth.MapPost("/forgot-password", async (
+        guarded.MapPost("/forgot-password", async (
             EmailRequest request,
             ICommandHandler<PortalForgotPasswordCommand, Success> handler,
             CancellationToken ct) =>
@@ -145,7 +148,7 @@ public static class PortalEndpoints
             .Produces(StatusCodes.Status202Accepted)
             .ProducesValidationProblem();
 
-        auth.MapPost("/reset-password", async (
+        guarded.MapPost("/reset-password", async (
             ResetPasswordRequest request,
             ICommandHandler<PortalResetPasswordCommand, Success> handler,
             CancellationToken ct) =>

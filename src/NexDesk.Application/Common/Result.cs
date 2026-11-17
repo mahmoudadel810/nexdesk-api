@@ -9,6 +9,9 @@ public enum ErrorKind
     Forbidden,
     NotFound,
     Conflict,
+
+    /// <summary>The workspace's plan does not allow it. Upgrading would.</summary>
+    LimitReached,
 }
 
 /// <summary>A failure a caller can act on. <see cref="Code"/> is a stable slug used as the problem type.</summary>
@@ -23,6 +26,8 @@ public sealed record Error(ErrorKind Kind, string Code, string Message)
     public static Error NotFound(string code, string message) => new(ErrorKind.NotFound, code, message);
 
     public static Error Conflict(string code, string message) => new(ErrorKind.Conflict, code, message);
+
+    public static Error LimitReached(string code, string message) => new(ErrorKind.LimitReached, code, message);
 }
 
 public readonly record struct Success;

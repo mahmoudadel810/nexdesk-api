@@ -45,6 +45,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("Jwt:SigningKey", "integration-tests-signing-key-0123456789abcdef");
         builder.UseSetting("Storage:RootPath", _storageRoot);
         builder.UseSetting("Jobs:RecurringEnabled", "false");
+        builder.UseSetting("RateLimiting:Enabled", "false");
         builder.UseSetting("Inbound:Secret", InboundSecret);
         builder.ConfigureTestServices(services =>
         {

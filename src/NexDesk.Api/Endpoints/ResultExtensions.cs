@@ -15,6 +15,7 @@ public static class ResultExtensions
             ErrorKind.Forbidden => StatusCodes.Status403Forbidden,
             ErrorKind.NotFound => StatusCodes.Status404NotFound,
             ErrorKind.Conflict => StatusCodes.Status409Conflict,
+            ErrorKind.LimitReached => StatusCodes.Status402PaymentRequired,
             _ => StatusCodes.Status500InternalServerError,
         },
         title: error.Message,

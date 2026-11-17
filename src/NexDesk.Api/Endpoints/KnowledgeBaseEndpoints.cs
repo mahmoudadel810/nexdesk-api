@@ -1,4 +1,5 @@
 using NexDesk.Api.Auth;
+using NexDesk.Api.RateLimiting;
 using NexDesk.Application.Common;
 using NexDesk.Application.KnowledgeBase;
 using NexDesk.Domain.Identity;
@@ -215,6 +216,7 @@ public static class KnowledgeBaseEndpoints
             ICommandHandler<SubmitKbFeedbackCommand, Success> handler,
             CancellationToken ct) =>
             (await handler.Handle(new SubmitKbFeedbackCommand(articleSlug, request.Helpful), ct)).ToNoContent())
+            .RequireRateLimiting(RateLimitingSetup.PublicWritePolicy)
             .WithName("SubmitPortalKbFeedback")
             .WithSummary("Records whether a reader found the article helpful.")
             .Produces(StatusCodes.Status204NoContent)

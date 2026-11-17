@@ -1,8 +1,10 @@
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.HttpOverrides;
 using NexDesk.Api.Auth;
 using NexDesk.Api.Endpoints;
 using NexDesk.Api.Middleware;
 using NexDesk.Api.OpenApi;
+using NexDesk.Api.RateLimiting;
 using NexDesk.Api.Realtime;
 using NexDesk.Application;
 using NexDesk.Application.Common;
@@ -42,6 +44,17 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddNexDeskOpenApi();
+builder.Services.AddNexDeskRateLimiting();
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    // The reverse proxy runs next to the API on a private network, so a forwarded address is only
+    // believed when it comes from one. The API itself must not be reachable from that network by others.
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    foreach (var network in new[] { "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16" })
+    {
+        options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(network));
+    }
+});
 
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<AppDbContext>("postgres", tags: [HealthEndpoints.ReadyTag]);
@@ -66,6 +79,7 @@ if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
     await app.Services.MigrateDatabaseAsync();
 }
 
+app.UseForwardedHeaders();
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseSerilogRequestLogging(options => options.GetLevel = (context, _, exception) =>
     exception is null && context.Request.Path.StartsWithSegments("/health")
@@ -75,6 +89,7 @@ app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseAuthentication();
 app.UseMiddleware<TenantResolutionMiddleware>();
+app.UseNexDeskRateLimiting();
 app.UseAuthorization();
 
 app.MapOpenApi();
@@ -94,6 +109,7 @@ v1.MapSlaEndpoints();
 v1.MapNotificationEndpoints();
 v1.MapKnowledgeBaseEndpoints();
 v1.MapAutomationEndpoints();
+v1.MapBillingEndpoints();
 v1.MapPortalEndpoints();
 app.MapHub<NotificationsHub>(NotificationsHub.Path);
 

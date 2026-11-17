@@ -7,6 +7,7 @@ using NexDesk.Application.Common;
 using NexDesk.Application.Sla;
 using NexDesk.Domain.Tenants;
 using NexDesk.Infrastructure.Automation;
+using NexDesk.Infrastructure.Billing;
 using NexDesk.Infrastructure.Persistence;
 
 namespace NexDesk.Infrastructure.Sla;
@@ -59,6 +60,9 @@ internal sealed class RecurringJobRegistrar(IRecurringJobManager jobs) : IHosted
         jobs.AddOrUpdate<SlaSweepJob>(SlaSweepJob.JobId, job => job.RunAsync(CancellationToken.None), Cron.Minutely());
         jobs.AddOrUpdate<AutomationSweepJob>(
             AutomationSweepJob.JobId, job => job.RunAsync(CancellationToken.None), AutomationSweepJob.Schedule);
+        jobs.AddOrUpdate<SubscriptionRenewalJob>(
+            SubscriptionRenewalJob.JobId, job => job.RunAsync(CancellationToken.None), Cron.Hourly());
+        jobs.AddOrUpdate<CleanupJob>(CleanupJob.JobId, job => job.RunAsync(CancellationToken.None), Cron.Daily(3));
         return Task.CompletedTask;
     }
 

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using NexDesk.Application.Billing;
 using NexDesk.Application.Common;
 using NexDesk.Domain.Common;
 using NexDesk.Domain.Customers;
@@ -25,7 +26,11 @@ public sealed record TicketDraft(
 /// Creates tickets and messages for every channel (agent, portal, email, API), so numbering, requester
 /// matching and attachment linking behave the same everywhere. The caller saves the context.
 /// </summary>
-public sealed class TicketWriter(IAppDbContext db, ITicketNumberAllocator numbers, TimeProvider clock)
+public sealed class TicketWriter(
+    IAppDbContext db,
+    ITicketNumberAllocator numbers,
+    IEntitlementService entitlements,
+    TimeProvider clock)
 {
     public const int MaxAttachmentsPerMessage = 10;
 
@@ -35,6 +40,11 @@ public sealed class TicketWriter(IAppDbContext db, ITicketNumberAllocator number
         TicketChannel channel,
         CancellationToken cancellationToken)
     {
+        if (await entitlements.CanCreateTicket(cancellationToken) is { } limit)
+        {
+            return limit;
+        }
+
         var requester = await ResolveRequester(draft, cancellationToken);
         if (!requester.IsSuccess)
         {

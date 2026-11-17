@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using NexDesk.Domain.Automation;
+using NexDesk.Domain.Billing;
 using NexDesk.Domain.Common;
 using NexDesk.Domain.Customers;
 using NexDesk.Domain.Identity;
@@ -65,6 +66,14 @@ public interface IAppDbContext
     DbSet<AutomationRule> AutomationRules { get; }
 
     DbSet<AutomationExecution> AutomationExecutions { get; }
+
+    DbSet<Plan> Plans { get; }
+
+    DbSet<Subscription> Subscriptions { get; }
+
+    DbSet<Invoice> Invoices { get; }
+
+    DbSet<UsageCounter> UsageCounters { get; }
 
     /// <summary>Forgets every tracked change, so an operation can be retried from fresh data.</summary>
     void DiscardChanges();

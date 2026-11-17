@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using NexDesk.Application.Auth;
+using NexDesk.Application.Billing;
 using NexDesk.Application.Common;
 using NexDesk.Domain.Identity;
 
@@ -116,7 +117,11 @@ internal sealed class ChangeUserRoleValidator : AbstractValidator<ChangeUserRole
     public ChangeUserRoleValidator() => RuleFor(c => c.Role).IsInEnum();
 }
 
-internal sealed class ChangeUserRoleHandler(IAppDbContext db, ICurrentUser currentUser, ISessionStateCache sessions)
+internal sealed class ChangeUserRoleHandler(
+    IAppDbContext db,
+    ICurrentUser currentUser,
+    ISessionStateCache sessions,
+    IEntitlementService entitlements)
     : ICommandHandler<ChangeUserRoleCommand, UserDto>
 {
     public async Task<Result<UserDto>> Handle(ChangeUserRoleCommand command, CancellationToken cancellationToken)
@@ -132,7 +137,14 @@ internal sealed class ChangeUserRoleHandler(IAppDbContext db, ICurrentUser curre
             return UserErrors.InsufficientRole;
         }
 
-        target!.ChangeRole(command.Role);
+        // Promoting a viewer adds someone who works on tickets, which the plan may not have room for.
+        if (target!.Role == Role.Viewer && command.Role != Role.Viewer && target.IsActive
+            && await entitlements.CanAddAgent(cancellationToken) is { } limit)
+        {
+            return limit;
+        }
+
+        target.ChangeRole(command.Role);
         await db.SaveChangesAsync(cancellationToken);
         sessions.Invalidate(target.Id);
         return UserDto.From(target);
@@ -169,7 +181,11 @@ internal sealed class DeactivateUserHandler(
 
 public sealed record ReactivateUserCommand(Guid UserId) : ICommand<UserDto>;
 
-internal sealed class ReactivateUserHandler(IAppDbContext db, ICurrentUser currentUser, ISessionStateCache sessions)
+internal sealed class ReactivateUserHandler(
+    IAppDbContext db,
+    ICurrentUser currentUser,
+    ISessionStateCache sessions,
+    IEntitlementService entitlements)
     : ICommandHandler<ReactivateUserCommand, UserDto>
 {
     public async Task<Result<UserDto>> Handle(ReactivateUserCommand command, CancellationToken cancellationToken)
@@ -178,6 +194,11 @@ internal sealed class ReactivateUserHandler(IAppDbContext db, ICurrentUser curre
         if (error is not null)
         {
             return error;
+        }
+
+        if (target is { IsActive: false, Role: not Role.Viewer } && await entitlements.CanAddAgent(cancellationToken) is { } limit)
+        {
+            return limit;
         }
 
         target!.Reactivate();

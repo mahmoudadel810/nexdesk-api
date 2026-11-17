@@ -1,4 +1,5 @@
 using NexDesk.Api.Auth;
+using NexDesk.Api.RateLimiting;
 using NexDesk.Application.Auth;
 using NexDesk.Application.Common;
 using NexDesk.Application.Onboarding;
@@ -205,6 +206,7 @@ public static class WorkspaceEndpoints
                 await handler.Handle(
                     new AcceptInvitationCommand(request.Token, request.FullName, request.Password, AuthEndpoints.UserAgent(http)),
                     ct)))
+            .RequireRateLimiting(RateLimitingSetup.AuthPolicy)
             .WithName("AcceptInvitation")
             .WithSummary("Creates the invited account and signs it in.")
             .Produces<AuthResponse>()

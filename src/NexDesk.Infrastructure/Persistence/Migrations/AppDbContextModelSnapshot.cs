@@ -157,6 +157,288 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                     b.ToTable("automation_rules", (string)null);
                 });
 
+            modelBuilder.Entity("NexDesk.Domain.Billing.Invoice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AmountCents")
+                        .HasColumnType("integer")
+                        .HasColumnName("amount_cents");
+
+                    b.Property<string>("BilledToEmail")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)")
+                        .HasColumnName("billed_to_email");
+
+                    b.Property<string>("BilledToName")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)")
+                        .HasColumnName("billed_to_name");
+
+                    b.Property<string>("CardBrand")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("card_brand");
+
+                    b.Property<string>("CardLast4")
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)")
+                        .HasColumnName("card_last4");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<DateTimeOffset>("IssuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("issued_at");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer")
+                        .HasColumnName("number");
+
+                    b.Property<DateTimeOffset>("PaidAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paid_at");
+
+                    b.Property<DateTimeOffset>("PeriodEnd")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("period_end");
+
+                    b.Property<DateTimeOffset>("PeriodStart")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("period_start");
+
+                    b.Property<string>("PlanCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("plan_code");
+
+                    b.Property<string>("PlanName")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("plan_name");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_invoices");
+
+                    b.HasIndex("IssuedAt")
+                        .HasDatabaseName("ix_invoices_issued_at");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_invoices_tenant_id");
+
+                    b.HasIndex("TenantId", "Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_invoices_tenant_id_number");
+
+                    b.ToTable("invoices", (string)null);
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Billing.Plan", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("code");
+
+                    b.Property<bool>("ApiAccess")
+                        .HasColumnType("boolean")
+                        .HasColumnName("api_access");
+
+                    b.Property<int?>("MaxAgents")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_agents");
+
+                    b.Property<int?>("MaxAutomationRules")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_automation_rules");
+
+                    b.Property<long>("MaxStorageBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("max_storage_bytes");
+
+                    b.Property<int?>("MaxTicketsPerMonth")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_tickets_per_month");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<int>("PriceCentsMonthly")
+                        .HasColumnType("integer")
+                        .HasColumnName("price_cents_monthly");
+
+                    b.Property<int>("RequestsPerMinute")
+                        .HasColumnType("integer")
+                        .HasColumnName("requests_per_minute");
+
+                    b.HasKey("Code")
+                        .HasName("pk_plans");
+
+                    b.ToTable("plans", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Code = "free",
+                            ApiAccess = false,
+                            MaxAgents = 3,
+                            MaxAutomationRules = 3,
+                            MaxStorageBytes = 1073741824L,
+                            MaxTicketsPerMonth = 100,
+                            Name = "Free",
+                            Position = 0,
+                            PriceCentsMonthly = 0,
+                            RequestsPerMinute = 240
+                        },
+                        new
+                        {
+                            Code = "pro",
+                            ApiAccess = false,
+                            MaxAgents = 10,
+                            MaxAutomationRules = 10,
+                            MaxStorageBytes = 21474836480L,
+                            MaxTicketsPerMonth = 2000,
+                            Name = "Pro",
+                            Position = 1,
+                            PriceCentsMonthly = 2900,
+                            RequestsPerMinute = 600
+                        },
+                        new
+                        {
+                            Code = "business",
+                            ApiAccess = true,
+                            MaxStorageBytes = 214748364800L,
+                            Name = "Business",
+                            Position = 2,
+                            PriceCentsMonthly = 9900,
+                            RequestsPerMinute = 1200
+                        });
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Billing.Subscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CardBrand")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("card_brand");
+
+                    b.Property<string>("CardLast4")
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)")
+                        .HasColumnName("card_last4");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTimeOffset?>("CurrentPeriodEnd")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("current_period_end");
+
+                    b.Property<DateTimeOffset>("CurrentPeriodStart")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("current_period_start");
+
+                    b.Property<string>("PlanCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("plan_code");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_subscriptions");
+
+                    b.HasIndex("CurrentPeriodEnd")
+                        .HasDatabaseName("ix_subscriptions_current_period_end");
+
+                    b.HasIndex("PlanCode")
+                        .HasDatabaseName("ix_subscriptions_plan_code");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_subscriptions_tenant_id");
+
+                    b.ToTable("subscriptions", (string)null);
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Billing.UsageCounter", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Period")
+                        .HasColumnType("integer")
+                        .HasColumnName("period");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<int>("TicketsCreated")
+                        .HasColumnType("integer")
+                        .HasColumnName("tickets_created");
+
+                    b.HasKey("Id")
+                        .HasName("pk_usage_counters");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_usage_counters_tenant_id");
+
+                    b.HasIndex("TenantId", "Period")
+                        .IsUnique()
+                        .HasDatabaseName("ix_usage_counters_tenant_id_period");
+
+                    b.ToTable("usage_counters", (string)null);
+                });
+
             modelBuilder.Entity("NexDesk.Domain.Customers.Customer", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1763,6 +2045,43 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_automation_rules_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Billing.Invoice", b =>
+                {
+                    b.HasOne("NexDesk.Domain.Tenants.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_invoices_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Billing.Subscription", b =>
+                {
+                    b.HasOne("NexDesk.Domain.Billing.Plan", null)
+                        .WithMany()
+                        .HasForeignKey("PlanCode")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_subscriptions_plans_plan_code");
+
+                    b.HasOne("NexDesk.Domain.Tenants.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_subscriptions_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Billing.UsageCounter", b =>
+                {
+                    b.HasOne("NexDesk.Domain.Tenants.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_usage_counters_tenants_tenant_id");
                 });
 
             modelBuilder.Entity("NexDesk.Domain.Customers.Customer", b =>

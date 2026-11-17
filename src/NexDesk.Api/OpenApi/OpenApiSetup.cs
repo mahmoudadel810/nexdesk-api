@@ -110,6 +110,7 @@ public static class OpenApiSetup
             true),
         [typeof(PreviewMarkdownRequest)] = new PreviewMarkdownRequest("## Steps\n\n1. Open **Billing**."),
         [typeof(KbFeedbackRequest)] = new KbFeedbackRequest(true),
+        [typeof(CheckoutRequest)] = new CheckoutRequest("pro", "Olivia Owner", "4242 4242 4242 4242", 12, 2030, "123"),
         [typeof(SaveAutomationRuleRequest)] = new SaveAutomationRuleRequest(
             "Close requests that wait on the customer for two days",
             AutomationTrigger.TimeBased,

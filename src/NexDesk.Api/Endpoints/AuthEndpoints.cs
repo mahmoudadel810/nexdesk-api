@@ -1,3 +1,4 @@
+using NexDesk.Api.RateLimiting;
 using NexDesk.Application.Auth;
 using NexDesk.Application.Common;
 
@@ -32,7 +33,11 @@ public static class AuthEndpoints
     {
         var auth = api.MapGroup("/auth").WithTags("Auth");
 
-        auth.MapPost("/register", async (
+        // Endpoints that take a password or send an email get a small budget per address. Refreshing a
+        // session happens on every page load and stays under the general limit.
+        var guarded = auth.MapGroup(string.Empty).RequireRateLimiting(RateLimitingSetup.AuthPolicy);
+
+        guarded.MapPost("/register", async (
             RegisterRequest request,
             ICommandHandler<RegisterWorkspaceCommand, RegisterWorkspaceResult> handler,
             CancellationToken cancellationToken) =>
@@ -55,7 +60,7 @@ public static class AuthEndpoints
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status409Conflict);
 
-        auth.MapPost("/login", async (
+        guarded.MapPost("/login", async (
             LoginRequest request,
             HttpContext http,
             ICommandHandler<LoginCommand, AuthTokens> handler,
@@ -106,7 +111,7 @@ public static class AuthEndpoints
             .WithSummary("Revokes the current refresh-token family and clears the cookie.")
             .Produces(StatusCodes.Status204NoContent);
 
-        auth.MapPost("/verify-email", async (
+        guarded.MapPost("/verify-email", async (
             VerifyEmailRequest request,
             HttpContext http,
             ICommandHandler<VerifyEmailCommand, AuthTokens> handler,
@@ -120,7 +125,7 @@ public static class AuthEndpoints
             .Produces<AuthResponse>()
             .ProducesValidationProblem();
 
-        auth.MapPost("/resend-verification", async (
+        guarded.MapPost("/resend-verification", async (
             EmailRequest request,
             ICommandHandler<ResendVerificationCommand, Success> handler,
             CancellationToken cancellationToken) =>
@@ -131,7 +136,7 @@ public static class AuthEndpoints
             .Produces(StatusCodes.Status202Accepted)
             .ProducesValidationProblem();
 
-        auth.MapPost("/forgot-password", async (
+        guarded.MapPost("/forgot-password", async (
             EmailRequest request,
             ICommandHandler<ForgotPasswordCommand, Success> handler,
             CancellationToken cancellationToken) =>
@@ -142,7 +147,7 @@ public static class AuthEndpoints
             .Produces(StatusCodes.Status202Accepted)
             .ProducesValidationProblem();
 
-        auth.MapPost("/reset-password", async (
+        guarded.MapPost("/reset-password", async (
             ResetPasswordRequest request,
             ICommandHandler<ResetPasswordCommand, Success> handler,
             CancellationToken cancellationToken) =>

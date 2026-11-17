@@ -76,13 +76,18 @@ session payload and hides actions accordingly; the backend remains the enforceme
 
 Entities raise domain events (`TicketCreated`, `TicketAssigned`, `ReplyAdded`, `TicketSolved`, …).
 After a successful `SaveChanges`, a dispatcher hands them to in-process handlers. Notifications,
-real-time pushes, automation rules, outbound webhooks and the audit log are all handlers on these
+real-time pushes, automation rules and outbound webhooks are all handlers on these
 events — none of them is called directly from ticket code. Work that can fail independently
 (email, webhook delivery) is enqueued as a Hangfire job from the handler.
 
 ### 1.6 Auditing, soft delete, concurrency
 
 - `AuditableEntity` carries `created_at/by` and `updated_at/by`, filled by an interceptor.
+- The audit log is written from the change tracker inside the same `SaveChanges`, not from domain
+  events: events carry no before/after values and only tickets raise them. A catalog lists the audited
+  records and the fields left out (secrets, and bookkeeping such as SLA deadlines). An update whose only
+  changes are hidden fields writes no entry. Work with no tenant in scope, such as sign-up, is not
+  logged.
 - `ISoftDeletable` entities get `deleted_at/by`; deletes become updates and a query filter hides
   them.
 - Tickets use the Postgres `xmin` system column as a concurrency token. The API returns it as
@@ -285,7 +290,7 @@ All list endpoints accept `page`, `pageSize`, `sort` and feature-specific filter
 | Reports | `GET /reports/overview`, `/volume`, `/backlog`, `/response-times`, `/sla-compliance`, `/csat`, `/agents`, each with `from`, `to`; `GET /reports/{name}/export.csv` |
 | Audit | `GET /audit-logs` |
 | Developer | `GET/POST /api-keys`, `DELETE /api-keys/{id}`; `GET/POST /webhooks`, `PUT/DELETE /webhooks/{id}`, `GET /webhooks/{id}/deliveries`, `POST /webhooks/deliveries/{id}/resend` |
-| Public API | `/public/v1/tickets...` authenticated by `X-Api-Key`, scoped |
+| Public API | `GET/POST /public/tickets`, `GET/PATCH /public/tickets/{id}`, `POST /public/tickets/{id}/messages`, authenticated by `X-Api-Key` with the `tickets:read` / `tickets:write` scopes; tickets opened here use the API channel and the key is the actor |
 | Settings | `GET/PUT /settings`, `POST /settings/logo` |
 | Platform admin | `GET /admin/tenants`, `GET /admin/tenants/{id}`, `POST /admin/tenants/{id}/suspend`, `/reactivate`, `GET /admin/metrics/mrr`, `GET /admin/metrics/signups` |
 

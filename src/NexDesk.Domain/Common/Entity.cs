@@ -57,6 +57,9 @@ public enum ActorType
     Staff,
     Customer,
     System,
+
+    /// <summary>An integration calling the public API with one of the workspace's API keys.</summary>
+    ApiKey,
 }
 
 public readonly record struct Actor(ActorType Type, Guid? Id)
@@ -66,4 +69,6 @@ public readonly record struct Actor(ActorType Type, Guid? Id)
     public static Actor Staff(Guid userId) => new(ActorType.Staff, userId);
 
     public static Actor Customer(Guid customerId) => new(ActorType.Customer, customerId);
+
+    public static Actor ApiKey(Guid apiKeyId) => new(ActorType.ApiKey, apiKeyId);
 }

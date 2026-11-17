@@ -59,6 +59,12 @@ public sealed class OpenApiDocumentTests(ApiFactory factory)
         paths.GetProperty("/api/v1/auth/me").GetProperty("get").TryGetProperty("security", out _).ShouldBeTrue();
         paths.GetProperty("/api/v1/users").GetProperty("get").TryGetProperty("security", out _).ShouldBeTrue();
         paths.GetProperty("/api/v1/auth/login").GetProperty("post").TryGetProperty("security", out _).ShouldBeFalse();
+
+        // The public API is called with an API key, not a staff token.
+        paths.GetProperty("/api/v1/public/tickets").GetProperty("get").GetProperty("security")[0]
+            .TryGetProperty("ApiKey", out _).ShouldBeTrue();
+        document.GetProperty("components").GetProperty("securitySchemes").GetProperty("ApiKey")
+            .GetProperty("name").GetString().ShouldBe("X-Api-Key");
     }
 
     private static bool HasExample(JsonElement schema, JsonElement schemas)

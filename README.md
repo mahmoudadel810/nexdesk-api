@@ -84,6 +84,43 @@ its reference and the sender is its requester; otherwise it would open a new tic
 is `POST /api/v1/inbound/email/{slug}` and requires the `X-Inbound-Secret` header to match
 `INBOUND_SECRET` from `.env`.
 
+## Public API, webhooks and the audit log
+
+Workspaces on a plan with API access (Business) can issue API keys under Developers. A key is shown
+once, stored only as a SHA-256 hash, and holds the `tickets:read` and/or `tickets:write` scope.
+Integrations call the public API with it:
+
+```bash
+curl -H "X-Api-Key: ndk_..." http://localhost:8080/api/v1/public/tickets?search=refund
+curl -X POST -H "X-Api-Key: ndk_..." -H "Content-Type: application/json" \
+  -d '{"subject":"Order 1001 arrived damaged","description":"The box was crushed.","requesterEmail":"casey@customer.example"}' \
+  http://localhost:8080/api/v1/public/tickets
+```
+
+Each key gets the plan's requests-per-minute allowance. Tickets it opens use the API channel, and
+the key's name shows as the actor in the ticket timeline and the audit log.
+
+Webhook endpoints receive `ticket.created`, `ticket.updated`, `ticket.assigned`, `ticket.replied`
+and `ticket.solved` as JSON POSTs. Every request is signed:
+
+```
+X-NexDesk-Event: ticket.created
+X-NexDesk-Delivery: <delivery id>
+X-NexDesk-Timestamp: 1700000000
+X-NexDesk-Signature: t=1700000000,v1=<hex HMAC-SHA256 of "1700000000.<raw body>" with the endpoint secret>
+```
+
+A receiver recomputes the HMAC over the timestamp, a dot and the raw body, compares it in constant
+time, and rejects old timestamps to stop replays. A delivery that fails (no 2xx answer within 10
+seconds) is retried by Hangfire after 1 minute, 5 minutes, 30 minutes, 2 hours and 6 hours, then
+marked failed. Each attempt shows in the delivery log, and any delivery can be resent. Webhooks
+refuse private, loopback and link-local addresses so a workspace cannot reach internal services;
+set `WEBHOOKS_ALLOW_PRIVATE_NETWORKS=true` in `.env` to try them against a receiver on your machine.
+
+The audit log records every create, change and delete of workspace records: who did it (a person,
+an API key or the system), each field's value before and after, when, and from which address.
+Secrets such as password and key hashes are never copied into it.
+
 ## Tests
 
 The integration tests start a throwaway PostgreSQL container, so Docker must be running.

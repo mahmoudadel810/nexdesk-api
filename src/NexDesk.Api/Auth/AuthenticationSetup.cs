@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -13,6 +14,18 @@ internal sealed class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser,
 
     public Guid? CustomerId => SubjectOf(JwtOptions.PortalAudience);
 
+    public Guid? ApiKeyId
+    {
+        get
+        {
+            var user = accessor.HttpContext?.User;
+            return user?.FindFirst("aud")?.Value == ApiKeyAuthenticationHandler.Audience
+                && Guid.TryParse(user.FindFirst(ApiKeyAuthenticationHandler.ApiKeyIdClaim)?.Value, out var id)
+                ? id
+                : null;
+        }
+    }
+
     private Guid? SubjectOf(string audience)
     {
         var user = accessor.HttpContext?.User;
@@ -21,6 +34,14 @@ internal sealed class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser,
             ? id
             : null;
     }
+}
+
+/// <summary>The caller's address, after the trusted proxy's forwarded headers were applied.</summary>
+internal sealed class HttpRequestOrigin(IHttpContextAccessor accessor) : IRequestOrigin
+{
+    public string? IpAddress => accessor.HttpContext?.Connection.RemoteIpAddress is { } address
+        ? (address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address).ToString()
+        : null;
 }
 
 public static class AuthenticationSetup
@@ -34,8 +55,12 @@ public static class AuthenticationSetup
         services.AddScoped<CurrentUser>();
         services.AddScoped<ICurrentUser>(provider => provider.GetRequiredService<CurrentUser>());
         services.AddScoped<ICurrentCustomer>(provider => provider.GetRequiredService<CurrentUser>());
+        services.AddScoped<IRequestOrigin, HttpRequestOrigin>();
 
-        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer().AddJwtBearer(PortalScheme);
+        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer()
+            .AddJwtBearer(PortalScheme)
+            .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeyAuthenticationHandler.SchemeName, null);
         services.AddOptions<JwtBearerOptions>(PortalScheme)
             .Configure<IOptions<JwtOptions>>((bearer, jwt) =>
             {
@@ -84,6 +109,15 @@ public static class AuthenticationSetup
         services.AddAuthorization();
         return services;
     }
+
+    /// <summary>Requires an API key that was granted <paramref name="scope"/>.</summary>
+    public static TBuilder RequireApiScope<TBuilder>(this TBuilder builder, string scope)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.RequireAuthorization(policy => policy
+            .AddAuthenticationSchemes(ApiKeyAuthenticationHandler.SchemeName)
+            .RequireAuthenticatedUser()
+            .RequireClaim("aud", ApiKeyAuthenticationHandler.Audience)
+            .RequireClaim(ApiKeyAuthenticationHandler.ScopeClaim, scope));
 
     /// <summary>Requires a signed-in staff user whose role grants <paramref name="permission"/>.</summary>
     public static TBuilder RequirePermission<TBuilder>(this TBuilder builder, string permission)

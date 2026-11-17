@@ -173,25 +173,13 @@ internal static class TimelineReader
                 .ToListAsync(cancellationToken))
             .ToLookup(a => a.MessageId!.Value);
 
-        var staffIds = messages.Where(m => m.AuthorType == ActorType.Staff).Select(m => m.AuthorId)
-            .Concat(events.Where(e => e.ActorType == ActorType.Staff).Select(e => e.ActorId))
-            .OfType<Guid>().Distinct().ToList();
-        var customerIds = messages.Where(m => m.AuthorType == ActorType.Customer).Select(m => m.AuthorId)
-            .Concat(events.Where(e => e.ActorType == ActorType.Customer).Select(e => e.ActorId))
-            .OfType<Guid>().Distinct().ToList();
-        var staffNames = await db.Users.AsNoTracking()
-            .Where(u => staffIds.Contains(u.Id))
-            .ToDictionaryAsync(u => u.Id, u => u.FullName, cancellationToken);
-        var customerNames = await db.Customers.AsNoTracking()
-            .Where(c => customerIds.Contains(c.Id))
-            .ToDictionaryAsync(c => c.Id, c => c.FullName, cancellationToken);
+        var names = await ActorNames.Resolve(
+            db,
+            messages.Select(m => new Actor(m.AuthorType, m.AuthorId))
+                .Concat(events.Select(e => new Actor(e.ActorType, e.ActorId))),
+            cancellationToken);
 
-        ActorDto Describe(ActorType type, Guid? id) => new(
-            type,
-            id,
-            id is null
-                ? null
-                : type == ActorType.Staff ? staffNames.GetValueOrDefault(id.Value) : customerNames.GetValueOrDefault(id.Value));
+        ActorDto Describe(ActorType type, Guid? id) => new(type, id, names.GetValueOrDefault(new Actor(type, id)));
 
         return messages
             .Select(m => new TimelineItem(

@@ -276,14 +276,8 @@ internal sealed class TicketNotificationHandlers(
         return recipients;
     }
 
-    private async Task<string?> ActorName(Actor actor, CancellationToken cancellationToken) => actor switch
-    {
-        { Type: ActorType.Staff, Id: { } userId } => await db.Users.AsNoTracking()
-            .Where(u => u.Id == userId).Select(u => u.FullName).FirstOrDefaultAsync(cancellationToken),
-        { Type: ActorType.Customer, Id: { } customerId } => await db.Customers.AsNoTracking()
-            .Where(c => c.Id == customerId).Select(c => c.FullName).FirstOrDefaultAsync(cancellationToken),
-        _ => null,
-    };
+    private Task<string?> ActorName(Actor actor, CancellationToken cancellationToken) =>
+        ActorNames.Resolve(db, actor, cancellationToken);
 
     /// <param name="ticket">The ticket the email is about.</param>
     /// <param name="template">Email template to use.</param>

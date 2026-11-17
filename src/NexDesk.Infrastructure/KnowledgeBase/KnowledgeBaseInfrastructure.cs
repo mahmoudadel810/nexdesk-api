@@ -54,13 +54,20 @@ internal sealed class KbArticleConfiguration : IEntityTypeConfiguration<KbArticl
 /// <summary>Full-text search over article titles and text.</summary>
 internal sealed class KbSearch : IKbSearch
 {
-    public IQueryable<KbArticle> Matching(IQueryable<KbArticle> articles, string term)
+    public IOrderedQueryable<KbArticle> Matching(IQueryable<KbArticle> articles, string term)
     {
         var query = FullText.PrefixQuery(term);
-        return query is null
-            ? articles.Where(_ => false)
-            : articles.Where(a => EF.Property<NpgsqlTsVector>(a, FullText.SearchVector)
-                .Matches(EF.Functions.ToTsQuery(FullText.Config, query)));
+        if (query is null)
+        {
+            return articles.Where(_ => false).OrderBy(a => a.Title);
+        }
+
+        return articles
+            .Where(a => EF.Property<NpgsqlTsVector>(a, FullText.SearchVector)
+                .Matches(EF.Functions.ToTsQuery(FullText.Config, query)))
+            .OrderByDescending(a => EF.Property<NpgsqlTsVector>(a, FullText.SearchVector)
+                .Rank(EF.Functions.ToTsQuery(FullText.Config, query)))
+            .ThenBy(a => a.Title);
     }
 }
 
@@ -104,6 +111,9 @@ public sealed class MarkdownRenderer : IMarkdownRenderer
 
         return document.ToHtml(Pipeline);
     }
+
+    public string ToPlainText(string markdown) =>
+        string.Join(' ', Markdown.ToPlainText(markdown, Pipeline).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     private static bool IsSafe(string? url)
     {

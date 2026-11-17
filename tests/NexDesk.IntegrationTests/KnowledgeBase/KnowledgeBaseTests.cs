@@ -163,7 +163,7 @@ public sealed class KnowledgeBaseTests(ApiFactory factory)
         var articles = await visitor.GetAsync<List<PublicKbArticleListItem>>(workspace.PortalPath("/kb/articles"));
         var item = articles.ShouldHaveSingleItem();
         item.Slug.ShouldBe(published.Slug);
-        item.Excerpt.ShouldBe("Open Billing and choose *Download PDF*.");
+        item.Excerpt.ShouldBe("Open Billing and choose Download PDF.");
 
         var article = await visitor.GetAsync<PublicKbArticleDto>(workspace.PortalPath($"/kb/articles/{published.Slug}"));
         article.BodyHtml.ShouldContain("<strong>Billing</strong>");
@@ -201,10 +201,14 @@ public sealed class KnowledgeBaseTests(ApiFactory factory)
         (await Search("forgot pass")).ShouldBe(["Reset your password"]);
         (await Search("استرجاع")).ShouldBe(["استرجاع المبلغ"]);
         (await Search("nothing-like-this")).ShouldBeEmpty();
+
+        // A match in the title outranks one in the text, whatever the alphabetical order.
+        await workspace.CreateKbArticleAsync(category.Id, "Account security", "Choose a long password and keep it private.");
+        (await Search("password")).ShouldBe(["Reset your password", "Account security"]);
         (await Search("' | !! & (")).ShouldBeEmpty();
 
         var staff = await workspace.Client.GetAsync<PagedResult<KbArticleListItem>>("/api/v1/kb/articles?search=password");
-        staff.Items.ShouldHaveSingleItem().Title.ShouldBe("Reset your password");
+        staff.Items.Select(a => a.Title).ShouldBe(["Reset your password", "Account security"]);
 
         var path = workspace.PortalPath($"/kb/articles/{invoice.Slug}");
         await visitor.GetAsync<PublicKbArticleDto>(path);

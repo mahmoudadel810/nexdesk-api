@@ -66,6 +66,19 @@ public sealed class MarkdownRendererTests
     public void Ordinary_links_are_kept(string markdown, string url) =>
         _renderer.ToHtml(markdown).ShouldContain($"href=\"{url}\"");
 
+    [Fact]
+    public void Plain_text_drops_every_kind_of_markup()
+    {
+        var text = _renderer.ToPlainText(
+            "## Steps\n\n1. Open **Billing**\n2. Read the [guide](https://example.test/guide) and `save`\n\n> Note\n\n<b>raw</b>");
+
+        text.ShouldStartWith("Steps Open Billing Read the guide and save Note");
+        text.ShouldNotContain("**");
+        text.ShouldNotContain("](");
+        text.ShouldNotContain("#");
+        text.ShouldNotContain("\n");
+    }
+
     [Theory]
     [InlineData("How to download an invoice", "how-to-download-an-invoice")]
     [InlineData("  What's new?!  ", "what-s-new")]

@@ -57,21 +57,30 @@ public static class KbErrors
 public interface IMarkdownRenderer
 {
     string ToHtml(string markdown);
+
+    /// <summary>The text of the document on one line, without any Markdown or HTML markup.</summary>
+    string ToPlainText(string markdown);
 }
 
 public interface IKbSearch
 {
-    /// <summary>Narrows articles to those whose title or text match the term.</summary>
-    IQueryable<KbArticle> Matching(IQueryable<KbArticle> articles, string term);
+    /// <summary>
+    /// Narrows articles to those whose title or text match the term, best match first. A match in the
+    /// title counts for more than one in the text.
+    /// </summary>
+    IOrderedQueryable<KbArticle> Matching(IQueryable<KbArticle> articles, string term);
 }
 
 internal static class KbQueries
 {
-    public static IQueryable<KbArticleListItem> ToListItems(this IQueryable<KbArticle> articles, IAppDbContext db) =>
+    /// <summary>Orders articles by relevance while searching and by title otherwise.</summary>
+    public static IOrderedQueryable<KbArticle> Ordered(this IQueryable<KbArticle> articles, IKbSearch search, string? term) =>
+        (string.IsNullOrWhiteSpace(term) ? articles.OrderBy(a => a.Title) : search.Matching(articles, term))
+        .ThenBy(a => a.Id);
+
+    public static IQueryable<KbArticleListItem> ToListItems(this IOrderedQueryable<KbArticle> articles, IAppDbContext db) =>
         articles
             .Join(db.KbCategories, article => article.CategoryId, category => category.Id, (article, category) => new { article, category })
-            .OrderBy(row => row.article.Title)
-            .ThenBy(row => row.article.Id)
             .Select(row => new KbArticleListItem(
                 row.article.Id,
                 row.article.Title,
@@ -256,11 +265,6 @@ internal sealed class ListKbArticlesHandler(IAppDbContext db, IKbSearch search)
         CancellationToken cancellationToken)
     {
         var articles = db.KbArticles.AsNoTracking();
-        if (!string.IsNullOrWhiteSpace(query.Search))
-        {
-            articles = search.Matching(articles, query.Search);
-        }
-
         if (query.CategoryId is { } categoryId)
         {
             articles = articles.Where(a => a.CategoryId == categoryId);
@@ -271,7 +275,7 @@ internal sealed class ListKbArticlesHandler(IAppDbContext db, IKbSearch search)
             articles = articles.Where(a => a.Status == status);
         }
 
-        return await articles.ToListItems(db).ToPagedAsync(query, cancellationToken);
+        return await articles.Ordered(search, query.Search).ToListItems(db).ToPagedAsync(query, cancellationToken);
     }
 }
 
@@ -440,7 +444,7 @@ internal sealed class ListPublicKbArticlesValidator : AbstractValidator<ListPubl
     }
 }
 
-internal sealed class ListPublicKbArticlesHandler(IAppDbContext db, IKbSearch search)
+internal sealed class ListPublicKbArticlesHandler(IAppDbContext db, IKbSearch search, IMarkdownRenderer markdown)
     : IQueryHandler<ListPublicKbArticlesQuery, IReadOnlyList<PublicKbArticleListItem>>
 {
     private const int ExcerptLength = 180;
@@ -450,19 +454,14 @@ internal sealed class ListPublicKbArticlesHandler(IAppDbContext db, IKbSearch se
         CancellationToken cancellationToken)
     {
         var articles = db.KbArticles.AsNoTracking().Where(a => a.Status == KbArticleStatus.Published);
-        if (!string.IsNullOrWhiteSpace(query.Search))
-        {
-            articles = search.Matching(articles, query.Search);
-        }
-
         if (query.CategoryId is { } categoryId)
         {
             articles = articles.Where(a => a.CategoryId == categoryId);
         }
 
         var rows = await articles
+            .Ordered(search, query.Search)
             .Join(db.KbCategories, a => a.CategoryId, c => c.Id, (a, c) => new { a.Title, a.Slug, Category = c.Name, a.BodyMarkdown })
-            .OrderBy(row => row.Title)
             .Take(query.Limit)
             .ToListAsync(cancellationToken);
         return rows
@@ -470,15 +469,10 @@ internal sealed class ListPublicKbArticlesHandler(IAppDbContext db, IKbSearch se
             .ToList();
     }
 
-    /// <summary>The start of the article as plain text, without Markdown punctuation.</summary>
-    private static string Excerpt(string markdown)
+    /// <summary>The start of the article as plain text.</summary>
+    private string Excerpt(string source)
     {
-        var text = string.Join(' ', markdown
-            .Split('\n')
-            .Select(line => line.Trim().TrimStart('#', '>', '-', '*', ' '))
-            .Where(line => line.Length > 0))
-            .Replace("**", string.Empty, StringComparison.Ordinal)
-            .Replace("`", string.Empty, StringComparison.Ordinal);
+        var text = markdown.ToPlainText(source);
         return text.Length <= ExcerptLength ? text : text[..ExcerptLength].TrimEnd() + "…";
     }
 }

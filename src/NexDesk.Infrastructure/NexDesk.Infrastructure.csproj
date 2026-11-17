@@ -17,6 +17,9 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="NexDesk.UnitTests" />
+  </ItemGroup>
+  <ItemGroup>
     <EmbeddedResource Include="Email\Templates\*.*" />
     <EmbeddedResource Include="Billing\Fonts\*.ttf" />
   </ItemGroup>

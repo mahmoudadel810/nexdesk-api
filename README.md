@@ -82,6 +82,36 @@ its clock moved to each moment: around 430 tickets across every status, replies 
 deadlines that were met or breached, ratings, plan changes with monthly invoices, knowledge base articles,
 automation rules and notifications. Eight smaller workspaces give the platform console its history.
 
+### A bigger dataset: thirty Saudi companies
+
+```bash
+docker compose run --rm api --seed=medium
+```
+
+`--seed=medium` adds thirty made-up Saudi companies to the demo above (running it on an already seeded
+database only adds what is missing). They span ten industries (online stores, telecom, food delivery,
+clinics, training, logistics, digital payments, travel, property management and car rental), and about
+seven in ten work in Arabic. Each one has 60 to 180 days of history:
+
+- staff and customers with Saudi names, teams, a Sunday to Thursday week in `Asia/Riyadh` and the Saudi
+  public holidays that fall inside its history (Eid al-Adha, Arafat Day, National Day);
+- tickets that carry a city, a `+966 5x` mobile number, an industry reference (order, booking, contract,
+  medical file...) and amounts in SAR, as conversations, internal notes that @mention teammates,
+  ratings and SLA breaches;
+- custom fields, knowledge base articles, automation rules, plan changes and invoices, an API key,
+  a paused webhook with a delivery history, saved views and a pending invitation.
+
+Together that is about 5,400 tickets, 19,000 messages and 1,900 customers, roughly 55 MB. The companies
+are generated from a fixed seed, so every run produces the same names. Some owners to sign in as, all
+with the demo password:
+
+| Workspace | Language | Owner |
+|-----------|----------|-------|
+| خزامى للاتصالات (telecom) | Arabic | `alanoud.sulami@khuzama-telecom.demo` |
+| طويق العقارية (property) | Arabic | `nawaf.buqami@tuwaiq-properties.demo` |
+| Waha Car Rental | English | `haifa.subaie@waha-cars.demo` |
+| Zumurrud Travel | English | `yazeed.buqami@zumurrud-travel.demo` |
+
 ### Running the API from source
 
 ```bash
@@ -419,6 +449,55 @@ link-local addresses so a workspace cannot reach internal services; set
 The audit log records every create, change and delete of workspace records: who did it (a person, an API
 key, the system or the platform), each field's value before and after, when, and from which address.
 Secrets such as password and key hashes are never copied into it.
+
+## Switches for demos and load tests
+
+| Setting (environment variable) | Default | What it does |
+|--------------------------------|---------|--------------|
+| `RateLimiting__Enabled` (`RATE_LIMITING_ENABLED` in `.env`) | `true` | `false` turns off every request limit: per address, per member and API key by plan, and sign-in attempts. For long E2E runs and load tests; leave it on anywhere the public can reach. |
+| `RateLimiting__AuthPerMinute` (`AUTH_RATE_LIMIT_PER_MINUTE`) | `10` | Sign-in, sign-up and password requests per minute from one address. |
+| `Email__LogOnly` | `false` | `true` logs each email's kind and the recipient's domain instead of sending it, for hosts without a mail server. |
+
+## Hosted demo: Supabase, Render and Vercel
+
+The demo runs on three free tiers: PostgreSQL on **Supabase**, the API as a Docker service on **Render**,
+and the web app on **Vercel**, which forwards `/api`, `/hubs`, `/docs`, `/openapi` and `/hangfire` to
+Render so the browser only ever talks to one origin (cookies stay first-party). Vercel cannot run the API
+itself: it needs a long-running process for SignalR and the background jobs.
+
+```mermaid
+flowchart LR
+    Browser --> Vercel["Vercel<br/>Angular app + rewrites"]
+    Vercel -- "/api, /hubs" --> Render["Render (Frankfurt)<br/>NexDesk API, Docker"]
+    Render -- "session pooler, TLS" --> Supabase["Supabase (Frankfurt)<br/>PostgreSQL, schema nexdesk"]
+```
+
+1. **Database.** Create a Supabase project, then a login role for the API that owns its own schema, kept
+   out of Supabase's public data API:
+
+   ```sql
+   create role nexdesk login password '...';
+   grant nexdesk to postgres;
+   grant create, connect, temporary on database postgres to nexdesk;
+   create schema nexdesk authorization nexdesk;
+   create extension if not exists citext with schema nexdesk;
+   alter role nexdesk set search_path = nexdesk;
+   ```
+
+   Connect through the session pooler, which has an IPv4 address (the direct host is IPv6 only):
+   `Host=aws-1-<region>.pooler.supabase.com;Port=5432;Database=postgres;Username=nexdesk.<project-ref>;Password=...;SSL Mode=Require;Maximum Pool Size=12`.
+   The API applies its migrations on first start. To load demo data, seed a local database with
+   `--seed=medium`, rename its `public` schema to `nexdesk`, and copy it across with
+   `pg_dump -n nexdesk --no-owner --no-privileges | psql "<pooler connection>"`.
+2. **API.** In Render choose *New > Blueprint* and pick this repository; [`render.yaml`](render.yaml)
+   describes the service (Frankfurt, free plan, health check, generated JWT and inbound secrets, email in
+   log-only mode, rate limiting off). Paste the connection string into `ConnectionStrings__Postgres`.
+3. **Web app.** Deploy [nexdesk-web](https://github.com/mahmoudadel810/nexdesk-web#hosting-on-vercel) to
+   Vercel; its `vercel.json` points the rewrites at `https://nexdesk-api.onrender.com`.
+
+Free-tier limits to know: the Render service sleeps after 15 idle minutes and takes about a minute to
+wake; its disk is wiped on every deploy, so uploaded attachments and logos do not survive; live updates
+use server-sent events or long polling because Vercel rewrites do not carry WebSockets.
 
 ## Tests
 

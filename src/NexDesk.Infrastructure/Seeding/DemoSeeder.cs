@@ -772,8 +772,13 @@ public sealed class DemoSeeder(
     /// <summary>A copy of the topic for one ticket, with {city}, {ref} and the other variables filled in.</summary>
     private static DemoTopic Fill(DemoTopic topic, Dictionary<string, string> values)
     {
+        // A phone number inside Arabic text would be laid out right to left ("2970 350 50 966+"), so it is
+        // isolated as left-to-right text; custom fields keep the plain value.
         string Apply(string text) =>
-            values.Aggregate(text, (current, pair) => current.Replace($"{{{pair.Key}}}", pair.Value, StringComparison.Ordinal));
+            values.Aggregate(text, (current, pair) => current.Replace(
+                $"{{{pair.Key}}}",
+                pair.Value.StartsWith('+') ? $"⁦{pair.Value}⁩" : pair.Value,
+                StringComparison.Ordinal));
 
         return topic with
         {

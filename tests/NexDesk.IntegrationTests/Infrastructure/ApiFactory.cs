@@ -17,6 +17,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         .WithDatabase("nexdesk_tests")
         .Build();
 
+    public const string InboundSecret = "integration-tests-inbound-secret";
+
     public CapturedEmails Emails { get; } = new();
 
     /// <summary>Ids of tickets whose creation event reached a domain event handler.</summary>
@@ -43,6 +45,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("Jwt:SigningKey", "integration-tests-signing-key-0123456789abcdef");
         builder.UseSetting("Storage:RootPath", _storageRoot);
         builder.UseSetting("Jobs:RecurringEnabled", "false");
+        builder.UseSetting("Inbound:Secret", InboundSecret);
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton(Emails);

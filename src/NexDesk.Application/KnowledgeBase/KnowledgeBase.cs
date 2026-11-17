@@ -15,7 +15,7 @@ public sealed record KbArticleListItem(
     string CategoryName,
     KbArticleStatus Status,
     DateTimeOffset? PublishedAt,
-    DateTimeOffset? UpdatedAt,
+    DateTimeOffset UpdatedAt,
     int ViewCount,
     int HelpfulCount,
     int NotHelpfulCount);
@@ -30,7 +30,7 @@ public sealed record KbArticleDto(
     string BodyMarkdown,
     string BodyHtml,
     DateTimeOffset? PublishedAt,
-    DateTimeOffset? UpdatedAt,
+    DateTimeOffset UpdatedAt,
     int ViewCount,
     int HelpfulCount,
     int NotHelpfulCount);
@@ -80,7 +80,7 @@ internal static class KbQueries
                 row.category.Name,
                 row.article.Status,
                 row.article.PublishedAt,
-                row.article.UpdatedAt,
+                row.article.UpdatedAt ?? row.article.CreatedAt,
                 row.article.ViewCount,
                 row.article.HelpfulCount,
                 row.article.NotHelpfulCount));
@@ -105,7 +105,7 @@ internal static class KbQueries
             article.BodyMarkdown,
             markdown.ToHtml(article.BodyMarkdown),
             article.PublishedAt,
-            article.UpdatedAt,
+            article.UpdatedAt ?? article.CreatedAt,
             article.ViewCount,
             article.HelpfulCount,
             article.NotHelpfulCount);
@@ -415,7 +415,7 @@ public sealed record PublicKbArticleDto(
     string CategoryName,
     string BodyHtml,
     DateTimeOffset? PublishedAt,
-    DateTimeOffset? UpdatedAt);
+    DateTimeOffset UpdatedAt);
 
 public sealed record ListPublicKbCategoriesQuery : IQuery<IReadOnlyList<KbCategoryDto>>;
 

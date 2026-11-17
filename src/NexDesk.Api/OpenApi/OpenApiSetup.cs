@@ -6,6 +6,7 @@ using NexDesk.Api.Endpoints;
 using NexDesk.Application.Notifications;
 using NexDesk.Application.Sla;
 using NexDesk.Application.Tickets;
+using NexDesk.Domain.Automation;
 using NexDesk.Domain.Identity;
 using NexDesk.Domain.Notifications;
 using NexDesk.Domain.Tickets;
@@ -109,6 +110,22 @@ public static class OpenApiSetup
             true),
         [typeof(PreviewMarkdownRequest)] = new PreviewMarkdownRequest("## Steps\n\n1. Open **Billing**."),
         [typeof(KbFeedbackRequest)] = new KbFeedbackRequest(true),
+        [typeof(SaveAutomationRuleRequest)] = new SaveAutomationRuleRequest(
+            "Close requests that wait on the customer for two days",
+            AutomationTrigger.TimeBased,
+            new RuleDefinition(
+                ConditionMatch.All,
+                [
+                    new RuleCondition(ConditionField.Status, ConditionOperator.Is, "Pending"),
+                    new RuleCondition(ConditionField.HoursSinceLastActivity, ConditionOperator.AtLeast, "48"),
+                ],
+                [
+                    new RuleAction(RuleActionType.SetStatus, "Solved"),
+                    new RuleAction(
+                        RuleActionType.SendEmail,
+                        Subject: "We have not heard back from you",
+                        Body: "Hi {{customer.name}}, we marked request #{{ticket.number}} as solved. Reply to reopen it."),
+                ])),
     };
 
     public static IServiceCollection AddNexDeskOpenApi(this IServiceCollection services) =>

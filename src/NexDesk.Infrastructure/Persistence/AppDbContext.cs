@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.Extensions.DependencyInjection;
 using NexDesk.Application.Common;
+using NexDesk.Domain.Automation;
 using NexDesk.Domain.Common;
 using NexDesk.Domain.Customers;
 using NexDesk.Domain.Identity;
@@ -74,6 +75,10 @@ public sealed class AppDbContext(
     public DbSet<KbCategory> KbCategories => Set<KbCategory>();
 
     public DbSet<KbArticle> KbArticles => Set<KbArticle>();
+
+    public DbSet<AutomationRule> AutomationRules => Set<AutomationRule>();
+
+    public DbSet<AutomationExecution> AutomationExecutions => Set<AutomationExecution>();
 
     public void DiscardChanges() => ChangeTracker.Clear();
 

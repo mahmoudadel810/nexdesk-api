@@ -25,6 +25,138 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "citext");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("NexDesk.Domain.Automation.AutomationExecution", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("outcome");
+
+                    b.Property<Guid>("RuleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("rule_id");
+
+                    b.Property<string>("Steps")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("steps");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<Guid>("TicketId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ticket_id");
+
+                    b.Property<int>("TicketNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("ticket_number");
+
+                    b.Property<string>("TicketSubject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("ticket_subject");
+
+                    b.HasKey("Id")
+                        .HasName("pk_automation_executions");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_automation_executions_tenant_id");
+
+                    b.HasIndex("TicketId")
+                        .HasDatabaseName("ix_automation_executions_ticket_id");
+
+                    b.HasIndex("RuleId", "CreatedAt")
+                        .HasDatabaseName("ix_automation_executions_rule_id_created_at");
+
+                    b.HasIndex("RuleId", "TicketId", "CreatedAt")
+                        .HasDatabaseName("ix_automation_executions_rule_id_ticket_id_created_at");
+
+                    b.ToTable("automation_executions", (string)null);
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Automation.AutomationRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Definition")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("definition");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_enabled");
+
+                    b.Property<DateTimeOffset?>("LastRunAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_run_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<int>("RunCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("run_count");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<string>("Trigger")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("trigger");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_automation_rules");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_automation_rules_tenant_id");
+
+                    b.HasIndex("TenantId", "Trigger", "IsEnabled")
+                        .HasDatabaseName("ix_automation_rules_tenant_id_trigger_is_enabled");
+
+                    b.ToTable("automation_rules", (string)null);
+                });
+
             modelBuilder.Entity("NexDesk.Domain.Customers.Customer", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1597,6 +1729,40 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                         .HasName("pk_ticket_sequences");
 
                     b.ToTable("ticket_sequences", (string)null);
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Automation.AutomationExecution", b =>
+                {
+                    b.HasOne("NexDesk.Domain.Automation.AutomationRule", null)
+                        .WithMany()
+                        .HasForeignKey("RuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_automation_executions_automation_rules_rule_id");
+
+                    b.HasOne("NexDesk.Domain.Tenants.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_automation_executions_tenants_tenant_id");
+
+                    b.HasOne("NexDesk.Domain.Tickets.Ticket", null)
+                        .WithMany()
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_automation_executions_tickets_ticket_id");
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Automation.AutomationRule", b =>
+                {
+                    b.HasOne("NexDesk.Domain.Tenants.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_automation_rules_tenants_tenant_id");
                 });
 
             modelBuilder.Entity("NexDesk.Domain.Customers.Customer", b =>

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NexDesk.Application.Common;
 using NexDesk.Application.KnowledgeBase;
+using NexDesk.Infrastructure.Automation;
 using NexDesk.Infrastructure.Email;
 using NexDesk.Infrastructure.Identity;
 using NexDesk.Infrastructure.KnowledgeBase;
@@ -72,6 +73,7 @@ public static class DependencyInjection
                 new PostgreSqlStorageOptions { QueuePollInterval = TimeSpan.FromSeconds(2) }));
         services.AddHangfireServer(server => server.WorkerCount = 4);
         services.AddScoped<SlaSweepJob>();
+        services.AddScoped<AutomationSweepJob>();
         if (configuration.GetValue("Jobs:RecurringEnabled", true))
         {
             services.AddHostedService<RecurringJobRegistrar>();

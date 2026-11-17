@@ -89,5 +89,19 @@
     "body": "اختر كلمة مرور لمتابعة طلباتك لدى {workspace} عبر الإنترنت.",
     "button": "اختيار كلمة مرور",
     "footer": "تنتهي صلاحية هذا الرابط خلال {hours} ساعة. إذا لم تطلبه فتجاهل هذه الرسالة."
+  },
+  "notify-automation": {
+    "subject": "{actor}: التذكرة رقم {number}",
+    "heading": "{actor}",
+    "body": "قاعدة أتمتة نبّهت إلى التذكرة رقم {number} «{subject}»:",
+    "button": "فتح التذكرة",
+    "footer": "يمكنك إيقاف هذه الرسائل من ملفك الشخصي في NexDesk."
+  },
+  "automation-message": {
+    "subject": "{title} [#{number}]",
+    "heading": "{title}",
+    "body": "مرحبًا {name}، رسالة من {workspace} بخصوص طلبك «{subject}»:",
+    "button": "عرض طلبك",
+    "footer": "يمكنك الرد على هذه الرسالة أو استخدام الزر أعلاه للرد من مركز مساعدة {workspace}."
   }
 }

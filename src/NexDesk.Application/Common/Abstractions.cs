@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using NexDesk.Domain.Automation;
 using NexDesk.Domain.Common;
 using NexDesk.Domain.Customers;
 using NexDesk.Domain.Identity;
@@ -60,6 +61,10 @@ public interface IAppDbContext
     DbSet<KbCategory> KbCategories { get; }
 
     DbSet<KbArticle> KbArticles { get; }
+
+    DbSet<AutomationRule> AutomationRules { get; }
+
+    DbSet<AutomationExecution> AutomationExecutions { get; }
 
     /// <summary>Forgets every tracked change, so an operation can be retried from fresh data.</summary>
     void DiscardChanges();

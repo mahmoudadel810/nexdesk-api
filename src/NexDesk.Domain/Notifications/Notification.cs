@@ -9,6 +9,9 @@ public enum NotificationType
     TicketNote,
     SlaWarning,
     SlaBreach,
+
+    /// <summary>Sent by an automation rule. The actor is the rule's name.</summary>
+    Automation,
 }
 
 /// <summary>Something a staff member should know about, shown in their notification centre.</summary>

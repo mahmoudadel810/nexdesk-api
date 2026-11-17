@@ -62,13 +62,6 @@
     "button": "View the conversation",
     "footer": "You can reply to this email or use the button above to answer in the {workspace} help centre."
   },
-  "portal-verify-email": {
-    "subject": "Confirm your email for {workspace} support",
-    "heading": "Welcome, {name}",
-    "body": "Confirm your email address to follow your requests at {workspace} online.",
-    "button": "Confirm email",
-    "footer": "This link expires in {hours} hours. If you did not sign up, you can ignore this email."
-  },
   "portal-reset-password": {
     "subject": "Choose a password for {workspace} support",
     "heading": "Choose your password",
@@ -89,5 +82,12 @@
     "body": "Hi {name}, your request “{subject}” was marked as solved. It takes ten seconds to tell us how it went.",
     "button": "Rate your experience",
     "footer": "Still need help? Reply to this email and your request is reopened."
+  },
+  "portal-welcome": {
+    "subject": "Finish setting up your {workspace} support account",
+    "heading": "Welcome, {name}",
+    "body": "Choose a password to follow your requests at {workspace} online.",
+    "button": "Choose a password",
+    "footer": "This link expires in {hours} hours. If you did not ask for it, you can ignore this email."
   }
 }

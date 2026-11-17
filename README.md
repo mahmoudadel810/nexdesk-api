@@ -36,7 +36,7 @@ docker compose up --build
 ```
 
 Before the first start, replace `JWT_SIGNING_KEY` in `.env` with a random value of at least 32
-characters (`openssl rand -base64 48`). The API applies its database migrations on startup.
+characters (`openssl rand -base64 48`) and `INBOUND_SECRET` with one of at least 16. The API applies its database migrations on startup.
 
 | Service | URL |
 |---------|-----|
@@ -64,6 +64,25 @@ a rotating refresh token in an `HttpOnly`, `SameSite=Strict` cookie scoped to `/
 Refresh tokens are stored hashed; presenting one that was already rotated revokes its whole
 family. New workspaces must confirm their email address — in local development the message lands
 in Mailpit at http://localhost:8025.
+
+## Customer portal and inbound email
+
+Customers use the help centre of a workspace at `/portal/{slug}` in the web client. They sign up
+with their own account (separate from staff, unique per workspace), follow their requests and
+rate them once solved. Portal tokens use a different audience than staff tokens, so neither opens
+the other's endpoints.
+
+Email-to-ticket is simulated with a webhook a mail gateway would call:
+
+```bash
+scripts/send-inbound-email.sh acme casey@customer.example "Cannot sign in" "I get an error." "Casey"
+scripts/send-inbound-email.sh acme casey@customer.example "Re: Cannot sign in [#12]" "It works now."
+```
+
+The first call opens a ticket. The second adds a reply to ticket 12 because the subject carries
+its reference and the sender is its requester; otherwise it would open a new ticket. The webhook
+is `POST /api/v1/inbound/email/{slug}` and requires the `X-Inbound-Secret` header to match
+`INBOUND_SECRET` from `.env`.
 
 ## Tests
 

@@ -89,5 +89,19 @@
     "body": "Choose a password to follow your requests at {workspace} online.",
     "button": "Choose a password",
     "footer": "This link expires in {hours} hours. If you did not ask for it, you can ignore this email."
+  },
+  "notify-automation": {
+    "subject": "{actor}: ticket #{number}",
+    "heading": "{actor}",
+    "body": "An automation rule flagged ticket #{number} “{subject}”:",
+    "button": "Open ticket",
+    "footer": "You can turn these emails off in your NexDesk profile."
+  },
+  "automation-message": {
+    "subject": "{title} [#{number}]",
+    "heading": "{title}",
+    "body": "Hi {name}, a message from {workspace} about your request “{subject}”:",
+    "button": "View your request",
+    "footer": "You can reply to this email or use the button above to answer in the {workspace} help centre."
   }
 }

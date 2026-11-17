@@ -214,3 +214,16 @@ public static class TestSla
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 }
+
+public static class TestAutomation
+{
+    /// <summary>Runs the time-based rules of one workspace as if the clock showed <paramref name="now"/>.</summary>
+    public static async Task<int> SweepAutomationAsync(this ApiFactory factory, Guid tenantId, DateTimeOffset now)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        using var tenant = scope.ServiceProvider
+            .GetRequiredService<NexDesk.Application.Common.ITenantScopeFactory>().Begin(tenantId);
+        return await scope.ServiceProvider.GetRequiredService<NexDesk.Application.Automation.AutomationEngine>()
+            .SweepAsync(now, CancellationToken.None);
+    }
+}

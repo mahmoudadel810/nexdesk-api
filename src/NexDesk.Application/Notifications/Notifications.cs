@@ -113,6 +113,7 @@ public sealed class Notifier(
         NotificationType.TicketReply => "reply",
         NotificationType.TicketNote => "note",
         NotificationType.SlaWarning => "sla-warning",
+        NotificationType.Automation => "automation",
         _ => "sla-breach",
     };
 }

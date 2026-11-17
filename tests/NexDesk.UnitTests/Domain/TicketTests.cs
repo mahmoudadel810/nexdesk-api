@@ -91,6 +91,7 @@ public sealed class TicketTests
     public void Unchanged_values_record_nothing_and_changes_record_old_and_new_values()
     {
         var ticket = NewTicket();
+        ticket.ClearDomainEvents();
         var before = ticket.Events.Count;
 
         ticket.ChangePriority(TicketPriority.Normal, Agent, Now);

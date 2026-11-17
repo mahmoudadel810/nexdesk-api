@@ -312,3 +312,13 @@ branch in `nexdesk-api` and, when the UI is touched, a branch of the same name i
 Before a branch is merged into `main`, the full check set runs locally: build with warnings as
 errors, unit and integration tests and `dotnet format --verify-no-changes` for the API; lint,
 format check, unit tests and a production build for the web client.
+
+### 6.1 Carried into later phases
+
+- **Rate limiting (phase 10):** the public help-centre endpoints that write — the article view counter
+  and the feedback vote — take anonymous requests and need a per-address limit.
+- **Log retention (phase 10):** `automation_executions` grows with every run. A time-based rule that
+  does not measure inactivity uses its old rows to know a ticket was already handled, so pruning must
+  keep the newest row per rule and ticket.
+- **Demo data (phase 15):** tickets seeded with dates in the past are due for every time-based rule on
+  the first sweep. Seeded rules therefore name a status.

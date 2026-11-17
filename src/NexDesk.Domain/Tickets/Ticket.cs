@@ -569,10 +569,20 @@ public sealed class Ticket : AuditableEntity, ITenantOwned, ISoftDeletable
     {
         _events.Add(TicketEvent.Create(Id, type, actor, oldValue, newValue, now, field));
         LastActivityAt = now;
-        if (!DomainEvents.OfType<TicketChanged>().Any())
+        // A ticket that is being created announces itself once, as created.
+        if (DomainEvents.OfType<TicketCreated>().Any())
         {
-            Raise(new TicketChanged(Id));
+            return;
         }
+
+        var changed = DomainEvents.OfType<TicketChanged>().FirstOrDefault();
+        if (changed is null)
+        {
+            changed = new TicketChanged(Id, actor);
+            Raise(changed);
+        }
+
+        changed.Add(type);
     }
 }
 
@@ -580,7 +590,16 @@ public sealed class TicketClosedException() : InvalidOperationException("A close
 
 public sealed record TicketCreated(Guid TicketId) : IDomainEvent;
 
-public sealed record TicketChanged(Guid TicketId) : IDomainEvent;
+/// <summary>One or more fields of a ticket changed in a single save.</summary>
+public sealed record TicketChanged(Guid TicketId, Actor Actor) : IDomainEvent
+{
+    private readonly List<TicketEventType> _changes = [];
+
+    /// <summary>What changed, in the order it happened.</summary>
+    public IReadOnlyList<TicketEventType> Changes => _changes;
+
+    internal void Add(TicketEventType change) => _changes.Add(change);
+}
 
 public sealed record TicketMessageAdded(Guid TicketId, Guid MessageId, Actor Author, bool IsInternal) : IDomainEvent;
 

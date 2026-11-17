@@ -5,6 +5,7 @@ using System.Text.Json;
 using Hangfire;
 using MailKit.Net.Smtp;
 using MailKit.Security;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MimeKit;
 using NexDesk.Application.Common;
@@ -33,6 +34,9 @@ public sealed class EmailOptions
 
     [Required]
     public string FromName { get; set; } = "NexDesk";
+
+    /// <summary>Writes a line to the log instead of sending, for hosted demos without a mail server.</summary>
+    public bool LogOnly { get; set; }
 }
 
 public sealed record RenderedEmail(string Subject, string Html, string Text);
@@ -122,12 +126,24 @@ public sealed class EmailTemplateRenderer
     }
 }
 
-internal sealed class SmtpEmailSender(EmailTemplateRenderer renderer, IOptions<EmailOptions> options) : IEmailSender
+internal sealed class SmtpEmailSender(
+    EmailTemplateRenderer renderer,
+    IOptions<EmailOptions> options,
+    ILogger<SmtpEmailSender> logger) : IEmailSender
 {
     public async Task SendAsync(EmailMessage message, CancellationToken cancellationToken)
     {
         var settings = options.Value;
         var rendered = renderer.Render(message);
+        if (settings.LogOnly)
+        {
+            // The message itself can hold sign-in and reset links, so only its kind and the recipient's domain are logged.
+            logger.LogInformation(
+                "Email {Template} to someone at {Domain} was not sent: sending is turned off",
+                message.Template,
+                message.ToAddress[(message.ToAddress.IndexOf('@', StringComparison.Ordinal) + 1)..]);
+            return;
+        }
 
         var mime = new MimeMessage();
         mime.From.Add(new MailboxAddress(settings.FromName, settings.FromAddress));

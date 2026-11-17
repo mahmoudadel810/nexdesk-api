@@ -18,7 +18,11 @@ internal sealed record DemoTopic(
     string CustomerFollowUp,
     string ClosingReply,
     string? InternalNote = null,
-    string? ProductArea = null);
+    string? ProductArea = null)
+{
+    /// <summary>The values filled into this copy of the topic, for one ticket.</summary>
+    public IReadOnlyDictionary<string, string>? Variables { get; init; }
+}
 
 internal sealed record DemoArticle(string Category, string Title, string Body, int Views, int Helpful, int NotHelpful);
 
@@ -41,7 +45,25 @@ internal sealed record DemoWorkspace(
     string PortalCustomerEmail,
     string PortalCustomerName,
     (int Day, string Plan)[] PlanChanges,
-    double TicketsPerDay);
+    double TicketsPerDay)
+{
+    /// <summary>How far back the history goes; the size's default when null.</summary>
+    public int? Days { get; init; }
+
+    /// <summary>Custom fields, each filled from one of the ticket's variables.</summary>
+    public DemoField[]? Fields { get; init; }
+
+    /// <summary>Addresses for <see cref="CustomerNames"/>, in the same order.</summary>
+    public string[]? CustomerEmails { get; init; }
+
+    /// <summary>Values such as {city} or {ref} that differ from ticket to ticket and fill in the topic texts.</summary>
+    public Func<Random, Dictionary<string, string>>? Variables { get; init; }
+
+    /// <summary>Also gives the workspace an API key, a webhook with deliveries, saved views and an open invitation.</summary>
+    public bool Extras { get; init; }
+}
+
+internal sealed record DemoField(string Key, string Label, CustomFieldType Type, string[]? Options, string Variable);
 
 /// <summary>Everything the demo workspaces say. Kept apart from the seeding logic so it reads as content.</summary>
 internal static class DemoContent

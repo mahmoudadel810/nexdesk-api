@@ -34,6 +34,7 @@ services:
       PlatformAdmin__Email: ${PLATFORM_ADMIN_EMAIL:-}
       PlatformAdmin__Password: ${PLATFORM_ADMIN_PASSWORD:-}
       # The end-to-end suite signs in many times from one address; raise this only for that.
+      RateLimiting__Enabled: ${RATE_LIMITING_ENABLED:-true}
       RateLimiting__AuthPerMinute: ${AUTH_RATE_LIMIT_PER_MINUTE:-10}
       Email__Host: mailpit
       Email__Port: 1025

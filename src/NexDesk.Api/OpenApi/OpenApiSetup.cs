@@ -242,6 +242,16 @@ public static class OpenApiSetup
                     schema.Examples = [JsonSerializer.SerializeToNode(example, example.GetType(), json.SerializerOptions)!];
                 }
 
+                // The web JSON defaults also read numbers sent as strings, so .NET describes them as "integer or
+                // string" with a digits pattern. The API only ever writes numbers, and typed clients need one type.
+                if (schema.Type is { } type
+                    && type.HasFlag(JsonSchemaType.String)
+                    && (type.HasFlag(JsonSchemaType.Integer) || type.HasFlag(JsonSchemaType.Number)))
+                {
+                    schema.Type = type & ~JsonSchemaType.String;
+                    schema.Pattern = null;
+                }
+
                 return Task.CompletedTask;
             });
         });

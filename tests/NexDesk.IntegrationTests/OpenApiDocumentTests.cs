@@ -91,6 +91,18 @@ public sealed class OpenApiDocumentTests(ApiFactory factory)
         missing.ShouldBeEmpty("client generators reject a path whose parameters are not declared");
     }
 
+    [Fact]
+    public async Task Numbers_are_described_as_numbers_only()
+    {
+        var document = await factory.CreateClient().GetFromJsonAsync<JsonElement>("/openapi/v1.json");
+        var raw = document.GetRawText();
+
+        raw.ShouldNotContain("\"integer\",\"string\"");
+        raw.ShouldNotContain("\"number\",\"string\"");
+        document.GetProperty("components").GetProperty("schemas").GetProperty("AdminInvoice").GetProperty("properties")
+            .GetProperty("amountCents").GetProperty("type").GetString().ShouldBe("integer");
+    }
+
     private static bool HasExample(JsonElement schema, JsonElement schemas)
     {
         if (schema.TryGetProperty("examples", out _))

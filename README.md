@@ -84,6 +84,15 @@ its reference and the sender is its requester; otherwise it would open a new tic
 is `POST /api/v1/inbound/email/{slug}` and requires the `X-Inbound-Secret` header to match
 `INBOUND_SECRET` from `.env`.
 
+## Workspace settings and branding
+
+Owners and admins set the workspace name, time zone and default language, and brand the help centre
+with a logo, an accent colour and welcome text (`GET/PUT /api/v1/settings`, `POST/DELETE
+/api/v1/settings/logo`). A logo must be a PNG, JPEG or WebP of up to 512 KB; its type is read from the
+file's first bytes, so a script renamed to `.png` is refused. It counts toward the plan's storage and is
+served publicly from `/api/v1/portal/{slug}/logo?v={timestamp}`. The address changes with every new logo,
+so the image is cached for a week with `immutable`.
+
 ## Public API, webhooks and the audit log
 
 Workspaces on a plan with API access (Business) can issue API keys under Developers. A key is shown

@@ -8,12 +8,15 @@ using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using NexDesk.Api.Endpoints;
 using NexDesk.Application.Common;
+using NexDesk.Application.Inbound;
 using NexDesk.Application.Notifications;
 using NexDesk.Application.Sla;
+using NexDesk.Application.Tickets;
 using NexDesk.Domain.Identity;
 using NexDesk.Domain.Notifications;
 using NexDesk.Domain.Tickets;
 using NexDesk.IntegrationTests.Infrastructure;
+using NexDesk.IntegrationTests.Portal;
 
 namespace NexDesk.IntegrationTests.Notifications;
 
@@ -69,6 +72,52 @@ public sealed class NotificationsTests(ApiFactory factory)
         (await Inbox(agent.Client)).Items.First().Type.ShouldBe(NotificationType.TicketNote);
         factory.Emails.Count(requester, "customer-reply").ShouldBe(1);
         factory.Emails.Count(agent.Email, "notify-note").ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task A_mention_makes_a_teammate_watch_the_ticket_and_tells_them_once()
+    {
+        var workspace = await factory.CreateWorkspaceAsync();
+        var agent = await factory.AddMemberAsync(workspace, Role.Agent, "Aaron Agent");
+        var bystander = await factory.AddMemberAsync(workspace, Role.Agent, "Bea Bystander");
+        var ticket = await workspace.Client.CreateTicketAsync(TestTickets.NewTicket("Refund request"));
+
+        var detail = await (await workspace.Client.PostAsJsonAsync(
+            $"/api/v1/tickets/{ticket.Id}/messages",
+            new AddMessageRequest("@aaron agent, can you check the invoice? @Olivia Owner @Nobody Here", IsInternal: true),
+            TestJson.Options)).ReadAsync<TicketDetailDto>();
+
+        detail.Watchers.Select(w => w.Id).ShouldContain(agent.UserId);
+        detail.Watchers.Select(w => w.Id).ShouldNotContain(bystander.UserId);
+        var mention = (await Inbox(agent.Client)).Items.ShouldHaveSingleItem();
+        mention.Type.ShouldBe(NotificationType.Mention);
+        mention.ActorName.ShouldBe("Olivia Owner");
+        factory.Emails.Last(agent.Email, "notify-mention").Rendered.Subject
+            .ShouldBe($"Olivia Owner mentioned you on ticket #{ticket.Number}: Refund request");
+        (await Inbox(workspace.Client)).TotalCount.ShouldBe(0);
+        (await Inbox(bystander.Client)).TotalCount.ShouldBe(0);
+
+        // As a watcher now, the next note is an ordinary one.
+        await workspace.Client.PostAsJsonAsync(
+            $"/api/v1/tickets/{ticket.Id}/messages",
+            new AddMessageRequest("Thanks!", IsInternal: true),
+            TestJson.Options);
+        (await Inbox(agent.Client)).Items.First().Type.ShouldBe(NotificationType.TicketNote);
+    }
+
+    [Fact]
+    public async Task Customers_cannot_mention_the_team()
+    {
+        var workspace = await factory.CreateWorkspaceAsync();
+        var agent = await factory.AddMemberAsync(workspace, Role.Agent, "Aaron Agent");
+
+        var created = await (await factory.SendInboundAsync(
+            workspace.Slug,
+            new InboundEmailRequest(TestWorkspaces.UniqueEmail("mailer"), null, "Help", "@Aaron Agent please call me"))).ReadAsync<InboundEmailResult>();
+        var ticket = await workspace.Client.GetAsync<TicketDetailDto>($"/api/v1/tickets/{created.TicketId}");
+
+        ticket.Watchers.ShouldNotContain(w => w.Id == agent.UserId);
+        (await Inbox(agent.Client)).TotalCount.ShouldBe(0);
     }
 
     [Fact]

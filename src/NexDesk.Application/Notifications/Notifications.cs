@@ -2,6 +2,7 @@ using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using NexDesk.Application.Common;
+using NexDesk.Application.Tickets;
 using NexDesk.Domain.Common;
 using NexDesk.Domain.Identity;
 using NexDesk.Domain.Notifications;
@@ -114,6 +115,7 @@ public sealed class Notifier(
         NotificationType.TicketNote => "note",
         NotificationType.SlaWarning => "sla-warning",
         NotificationType.Automation => "automation",
+        NotificationType.Mention => "mention",
         _ => "sla-breach",
     };
 }
@@ -205,13 +207,21 @@ internal sealed class TicketNotificationHandlers(
         }
 
         var actorName = await ActorName(domainEvent.Author, cancellationToken);
+
+        // Only the team can mention the team; a customer typing @ pings nobody.
+        var mentioned = domainEvent.Author.Type == ActorType.Staff
+            ? await Mentions.InAsync(db, body, domainEvent.Author.Id, cancellationToken)
+            : [];
+        await notifier.NotifyAsync(NotificationType.Mention, ticket, mentioned, actorName, body, cancellationToken);
+
         var watchers = await db.TicketWatchers.AsNoTracking()
             .Where(w => w.TicketId == ticket.Id)
             .Select(w => w.UserId)
             .ToListAsync(cancellationToken);
         var recipients = watchers
             .Concat(ticket.AssigneeId is { } assigneeId ? [assigneeId] : [])
-            .Where(id => domainEvent.Author.Type != ActorType.Staff || id != domainEvent.Author.Id);
+            .Where(id => domainEvent.Author.Type != ActorType.Staff || id != domainEvent.Author.Id)
+            .Except(mentioned);
         await notifier.NotifyAsync(
             domainEvent.IsInternal ? NotificationType.TicketNote : NotificationType.TicketReply,
             ticket,

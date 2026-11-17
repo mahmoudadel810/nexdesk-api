@@ -74,7 +74,7 @@ public sealed class SessionIssuer(
             familyId);
         db.RefreshTokens.Add(refreshToken);
 
-        var accessToken = tokens.CreateStaffAccessToken(user);
+        var accessToken = tokens.CreateStaffAccessToken(user, refreshToken.FamilyId);
         var result = new AuthTokens(
             accessToken.Value,
             accessToken.ExpiresAt,

@@ -40,6 +40,9 @@ public static class NexDeskClaims
     public const string Permission = "perm";
     public const string SecurityVersion = "sv";
     public const string PlatformAdmin = "platform_admin";
+
+    /// <summary>The refresh-token family behind the access token, so a device can be tied to its sign-in.</summary>
+    public const string SessionId = "sid";
 }
 
 internal sealed class IdentityDirectory(AppDbContext db) : IIdentityDirectory, ICrossTenantQuery
@@ -98,7 +101,7 @@ internal sealed class JwtTokenService(
 {
     private readonly JsonWebTokenHandler _handler = new();
 
-    public AccessToken CreateStaffAccessToken(User user)
+    public AccessToken CreateStaffAccessToken(User user, Guid? sessionId = null)
     {
         var now = clock.GetUtcNow();
         var expires = now.AddMinutes(authOptions.Value.AccessTokenMinutes);
@@ -107,6 +110,11 @@ internal sealed class JwtTokenService(
             new(NexDeskClaims.Subject, user.Id.ToString()),
             new(NexDeskClaims.SecurityVersion, user.SecurityVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)),
         };
+
+        if (sessionId is { } sid)
+        {
+            claims.Add(new Claim(NexDeskClaims.SessionId, sid.ToString()));
+        }
 
         if (user.IsPlatformAdmin)
         {

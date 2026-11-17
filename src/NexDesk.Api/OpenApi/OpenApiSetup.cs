@@ -26,6 +26,8 @@ public static class OpenApiSetup
         [typeof(RegisterRequest)] = new RegisterRequest(
             "Acme Support", "acme-support", "Olivia Owner", "olivia@acme.example", "Correct-horse-7", "en", "Europe/London"),
         [typeof(LoginRequest)] = new LoginRequest("olivia@acme.example", "Correct-horse-7"),
+        [typeof(MobileLoginRequest)] = new MobileLoginRequest("olivia@acme.example", "Correct-horse-7", "Pixel 8"),
+        [typeof(MobileRefreshRequest)] = new MobileRefreshRequest("pX3l9kQ7m2vR8sT1wY4zA6bC0dE5fG7h"),
         [typeof(EmailRequest)] = new EmailRequest("olivia@acme.example"),
         [typeof(VerifyEmailRequest)] = new VerifyEmailRequest("mK3vJ0pQ7n2Xb8sT1uYw5zA9cD4eF6gH"),
         [typeof(ResetPasswordRequest)] = new ResetPasswordRequest("mK3vJ0pQ7n2Xb8sT1uYw5zA9cD4eF6gH", "Even-better-pass-8"),

@@ -217,6 +217,25 @@ sequenceDiagram
     Note over A,D: Presenting an already-rotated token revokes<br/>the whole family: a stolen token stops working
 ```
 
+The mobile app (Phase 16) has no reliable cookie jar, so it uses three sibling endpoints that carry the
+refresh token in the body and keep it in the phone's Keychain or Keystore. Rotation and theft detection are
+the same code.
+
+```mermaid
+sequenceDiagram
+    participant M as Mobile app
+    participant S as Secure storage
+    participant A as API
+    M->>A: POST /auth/mobile/login (email, password, device name)
+    A-->>M: access token (sid = sign-in id) + refresh token, no cookie
+    M->>S: save the refresh token
+    M->>A: POST /auth/mobile/refresh { refreshToken } (one at a time)
+    A-->>M: new pair; the old token is now spent
+    M->>S: save the new refresh token before using the new access token
+    M->>A: POST /auth/mobile/logout { refreshToken }
+    A->>A: revoke the whole sign-in
+```
+
 ### SLA timers and breaches
 
 ```mermaid
@@ -348,6 +367,12 @@ by the client; the refresh token sits in an `HttpOnly`, `SameSite=Strict` cookie
 endpoints receive, so scripts on the page cannot read it. Each refresh token is used once and stored only
 as a hash. Reuse of a rotated token is treated as theft and revokes every token of that sign-in. A
 security version in the token lets a password change or deactivation end all sessions within 30 seconds.
+The mobile endpoints (`/auth/mobile/*`) return the refresh token in the body instead, for the device's
+secure storage. They never read the cookie and the cookie endpoints never read a body token, so script on
+the web page cannot trade the browser's cookie for a token it can read. A refresh stores the next token
+before claiming the old one, so when two refreshes race, the loser's revocation also covers the winner's
+token and nothing from that sign-in survives. There is no grace window for a just-rotated token: a phone
+refreshes one request at a time instead.
 
 **PostgreSQL full-text search rather than Elasticsearch.** Generated `tsvector` columns with GIN indexes
 cover subjects, conversations and articles, stay consistent inside the same transaction, respect the

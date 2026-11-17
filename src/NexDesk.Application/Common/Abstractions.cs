@@ -198,7 +198,10 @@ public sealed record AccessToken(string Value, DateTimeOffset ExpiresAt);
 
 public interface ITokenService
 {
-    AccessToken CreateStaffAccessToken(User user);
+    /// <summary>Signs an access token for a team member or the platform admin.</summary>
+    /// <param name="user">Whose token it is.</param>
+    /// <param name="sessionId">The refresh-token family the access token belongs to, carried as the <c>sid</c> claim.</param>
+    AccessToken CreateStaffAccessToken(User user, Guid? sessionId = null);
 
     AccessToken CreateCustomerAccessToken(Customer customer);
 

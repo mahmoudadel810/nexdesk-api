@@ -41,6 +41,13 @@
     "button": "Open ticket",
     "footer": "You get this email because you are assigned to or watching this ticket."
   },
+  "notify-mention": {
+    "subject": "{actor} mentioned you on ticket #{number}: {subject}",
+    "heading": "You were mentioned on ticket #{number}",
+    "body": "{actor} mentioned you on “{subject}”:",
+    "button": "Open ticket",
+    "footer": "You get this email because a teammate mentioned you. You now watch this ticket."
+  },
   "notify-sla-warning": {
     "subject": "Ticket #{number} is close to its deadline",
     "heading": "A deadline is close",

@@ -12,6 +12,9 @@ public enum NotificationType
 
     /// <summary>Sent by an automation rule. The actor is the rule's name.</summary>
     Automation,
+
+    /// <summary>A teammate wrote @Your Name in a reply or note.</summary>
+    Mention,
 }
 
 /// <summary>Something a staff member should know about, shown in their notification centre.</summary>

@@ -294,6 +294,15 @@ internal sealed class AddTicketMessageHandler(
             ticket.ChangeStatus(status, actor, clock.GetUtcNow());
         }
 
+        // Someone pulled into a conversation should hear about what happens next.
+        if (actor.Type == ActorType.Staff)
+        {
+            foreach (var mentioned in await Mentions.InAsync(db, command.Body, actor.Id, cancellationToken))
+            {
+                ticket.Watch(mentioned);
+            }
+        }
+
         await db.SaveChangesAsync(cancellationToken);
         return (await TicketQueries.LoadDetail(db, ticket.Id, currentUser.UserId, cancellationToken))!;
     }

@@ -30,6 +30,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-nexdesk};Username=${POSTGRES_USER:-nexdesk};Password=${POSTGRES_PASSWORD}
       Jwt__SigningKey: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in .env}
+      Inbound__Secret: ${INBOUND_SECRET:?Set INBOUND_SECRET in .env}
       Email__Host: mailpit
       Email__Port: 1025
       App__WebBaseUrl: ${WEB_BASE_URL:-http://localhost:4200}

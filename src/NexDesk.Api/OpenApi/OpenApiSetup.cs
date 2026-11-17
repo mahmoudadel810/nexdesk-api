@@ -92,6 +92,14 @@ public static class OpenApiSetup
         [
             new NotificationPreferenceDto(NotificationType.TicketNote, InApp: true, Email: false),
         ]),
+        [typeof(PortalRegisterRequest)] = new PortalRegisterRequest("Casey Customer", "casey@customer.example", "Correct-horse-7"),
+        [typeof(PortalTicketRequest)] = new PortalTicketRequest(
+            "Cannot download my invoice", "The download button on the billing page shows an error since this morning."),
+        [typeof(PortalReplyRequest)] = new PortalReplyRequest("It works again, thank you!"),
+        [typeof(CsatRequest)] = new CsatRequest(5, "Fast and friendly."),
+        [typeof(CsatSurveyRequest)] = new CsatSurveyRequest("mK3vJ0pQ7n2Xb8sT1uYw5zA9cD4eF6gH", 4, "Solved, but it took a while."),
+        [typeof(InboundEmailRequest)] = new InboundEmailRequest(
+            "casey@customer.example", "Casey Customer", "Re: Cannot download my invoice [#42]", "Here is the screenshot you asked for."),
         [typeof(AddHolidayRequest)] = new AddHolidayRequest(new DateOnly(2027, 1, 1), "New Year's Day"),
     };
 

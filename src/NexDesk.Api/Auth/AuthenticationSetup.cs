@@ -6,22 +6,50 @@ using NexDesk.Infrastructure.Identity;
 
 namespace NexDesk.Api.Auth;
 
-internal sealed class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser
+/// <summary>Reads the signed-in person from the request. Staff and portal customers carry different audiences.</summary>
+internal sealed class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser, ICurrentCustomer
 {
-    public Guid? UserId =>
-        Guid.TryParse(accessor.HttpContext?.User.FindFirst(NexDeskClaims.Subject)?.Value, out var id) ? id : null;
+    public Guid? UserId => SubjectOf(JwtOptions.StaffAudience);
+
+    public Guid? CustomerId => SubjectOf(JwtOptions.PortalAudience);
+
+    private Guid? SubjectOf(string audience)
+    {
+        var user = accessor.HttpContext?.User;
+        return user?.FindFirst("aud")?.Value == audience
+            && Guid.TryParse(user.FindFirst(NexDeskClaims.Subject)?.Value, out var id)
+            ? id
+            : null;
+    }
 }
 
 public static class AuthenticationSetup
 {
     public const string TenantSuspendedItem = "nexdesk.tenant-suspended";
+    public const string PortalScheme = "Portal";
 
     public static IServiceCollection AddNexDeskAuthentication(this IServiceCollection services)
     {
         services.AddHttpContextAccessor();
-        services.AddScoped<ICurrentUser, CurrentUser>();
+        services.AddScoped<CurrentUser>();
+        services.AddScoped<ICurrentUser>(provider => provider.GetRequiredService<CurrentUser>());
+        services.AddScoped<ICurrentCustomer>(provider => provider.GetRequiredService<CurrentUser>());
 
-        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
+        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer().AddJwtBearer(PortalScheme);
+        services.AddOptions<JwtBearerOptions>(PortalScheme)
+            .Configure<IOptions<JwtOptions>>((bearer, jwt) =>
+            {
+                bearer.MapInboundClaims = false;
+                bearer.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidIssuer = jwt.Value.Issuer,
+                    ValidAudience = JwtOptions.PortalAudience,
+                    IssuerSigningKey = jwt.Value.CreateKey(),
+                    NameClaimType = NexDeskClaims.Subject,
+                    ClockSkew = TimeSpan.FromSeconds(30),
+                };
+                bearer.Events = new JwtBearerEvents { OnTokenValidated = CheckCustomerSessionState };
+            });
         services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
             .Configure<IOptions<JwtOptions>>((bearer, jwt) =>
             {
@@ -63,6 +91,24 @@ public static class AuthenticationSetup
         builder.RequireAuthorization(policy => policy
             .RequireAuthenticatedUser()
             .RequireClaim(NexDeskClaims.Permission, permission));
+
+    private static async Task CheckCustomerSessionState(TokenValidatedContext context)
+    {
+        var principal = context.Principal!;
+        if (!Guid.TryParse(principal.FindFirst(NexDeskClaims.Subject)?.Value, out var customerId)
+            || !int.TryParse(principal.FindFirst(NexDeskClaims.SecurityVersion)?.Value, out var securityVersion))
+        {
+            context.Fail("The token is missing required claims.");
+            return;
+        }
+
+        var sessions = context.HttpContext.RequestServices.GetRequiredService<SessionStateCache>();
+        if (await sessions.CheckCustomerAsync(customerId, securityVersion, context.HttpContext.RequestAborted)
+            != SessionState.Valid)
+        {
+            context.Fail("The session is no longer valid.");
+        }
+    }
 
     private static async Task CheckSessionState(TokenValidatedContext context)
     {

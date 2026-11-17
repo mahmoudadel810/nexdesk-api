@@ -26,6 +26,8 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddNexDeskAuthentication();
+builder.Services.AddOptions<InboundOptions>().BindConfiguration(InboundOptions.SectionName)
+    .ValidateDataAnnotations().ValidateOnStart();
 builder.Services.AddSignalR().AddJsonProtocol(options =>
     options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddSingleton<IRealtimeNotifier, SignalRRealtimeNotifier>();
@@ -90,6 +92,7 @@ v1.MapWorkspaceEndpoints();
 v1.MapTicketEndpoints();
 v1.MapSlaEndpoints();
 v1.MapNotificationEndpoints();
+v1.MapPortalEndpoints();
 app.MapHub<NotificationsHub>(NotificationsHub.Path);
 
 await app.RunAsync();

@@ -1611,6 +1611,11 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("BrandColor")
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)")
+                        .HasColumnName("brand_color");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -1625,6 +1630,24 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(8)")
                         .HasColumnName("default_language");
 
+                    b.Property<string>("LogoContentType")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("logo_content_type");
+
+                    b.Property<string>("LogoFileKey")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("logo_file_key");
+
+                    b.Property<long>("LogoSizeBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("logo_size_bytes");
+
+                    b.Property<DateTimeOffset?>("LogoUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("logo_updated_at");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1634,6 +1657,11 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("OnboardingCompletedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("onboarding_completed_at");
+
+                    b.Property<string>("PortalWelcomeText")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("portal_welcome_text");
 
                     b.Property<string>("Slug")
                         .IsRequired()

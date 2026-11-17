@@ -58,7 +58,7 @@ internal static class AuditCatalog
 
     private static readonly Dictionary<Type, AuditedType> Types = new()
     {
-        [typeof(Tenant)] = new("workspace"),
+        [typeof(Tenant)] = new("workspace", "LogoFileKey", "LogoSizeBytes"),
         [typeof(User)] = new("user", "Availability"),
         [typeof(Invitation)] = new("invitation"),
         [typeof(Team)] = new("team"),

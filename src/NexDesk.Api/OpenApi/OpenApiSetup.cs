@@ -143,6 +143,8 @@ public static class OpenApiSetup
             "https://hooks.example.com/nexdesk", ["ticket.created", "ticket.solved"], "Sync to the order system"),
         [typeof(UpdateWebhookRequest)] = new UpdateWebhookRequest(
             "https://hooks.example.com/nexdesk", ["ticket.created", "ticket.updated"], IsEnabled: false),
+        [typeof(UpdateSettingsRequest)] = new UpdateSettingsRequest(
+            "Acme Support", "Europe/London", "en", "#2e7d32", "Welcome! Search our articles or send us a request."),
         [typeof(PublicUpdateTicketRequest)] = new PublicUpdateTicketRequest(Status: TicketStatus.Solved),
         [typeof(PublicAddMessageRequest)] = new PublicAddMessageRequest(
             "A replacement is on its way: tracking number 1Z999.", SetStatus: TicketStatus.Pending),

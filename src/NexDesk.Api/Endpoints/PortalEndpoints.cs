@@ -8,6 +8,7 @@ using NexDesk.Api.RateLimiting;
 using NexDesk.Application.Common;
 using NexDesk.Application.Inbound;
 using NexDesk.Application.Portal;
+using NexDesk.Application.Tenants;
 using NexDesk.Application.Tickets;
 using NexDesk.Domain.Tenants;
 using NexDesk.Domain.Tickets;
@@ -51,8 +52,32 @@ public static class PortalEndpoints
         portal.MapGet("/", async (string slug, IQueryHandler<GetPortalInfoQuery, PortalInfoDto> handler, CancellationToken ct) =>
             (await handler.Handle(new GetPortalInfoQuery(slug), ct)).ToOk())
             .WithName("GetPortalInfo")
-            .WithSummary("Returns the public name and language of a workspace's help centre.")
+            .WithSummary(
+                "Returns the public name, language and branding of a workspace's help centre: accent colour, "
+                + "welcome text and the logo's address.")
             .Produces<PortalInfoDto>()
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        portal.MapGet("/logo", async Task<IResult> (
+            string slug,
+            HttpContext http,
+            IQueryHandler<GetPortalLogoQuery, LogoContent> handler,
+            CancellationToken ct) =>
+        {
+            var result = await handler.Handle(new GetPortalLogoQuery(slug), ct);
+            if (!result.IsSuccess)
+            {
+                return result.Error.ToProblem();
+            }
+
+            // The address changes with every new logo, so the image itself can be cached for a long time.
+            http.Response.Headers.CacheControl = "public, max-age=604800, immutable";
+            http.Response.Headers.XContentTypeOptions = "nosniff";
+            return TypedResults.Stream(result.Value.Content, result.Value.ContentType);
+        })
+            .WithName("GetPortalLogo")
+            .WithSummary("Returns the workspace's logo image. Use the versioned address from the help centre info.")
+            .Produces(StatusCodes.Status200OK, contentType: "image/png")
             .ProducesProblem(StatusCodes.Status404NotFound);
 
         MapAuth(portal.MapGroup("/auth"));

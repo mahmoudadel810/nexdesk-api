@@ -5,7 +5,7 @@ namespace NexDesk.Api.Endpoints;
 
 public sealed record ListNotificationsRequest(bool UnreadOnly = false, int Page = 1, int PageSize = Paging.DefaultPageSize);
 
-public sealed record UpdateNotificationPreferencesRequest(IReadOnlyList<NotificationPreferenceDto> Preferences);
+public sealed record UpdateNotificationPreferencesRequest(IReadOnlyList<NotificationPreferenceInput> Preferences);
 
 public static class NotificationEndpoints
 {
@@ -53,7 +53,7 @@ public static class NotificationEndpoints
             CancellationToken ct) =>
             (await handler.Handle(new GetNotificationPreferencesQuery(), ct)).ToOk())
             .WithName("GetNotificationPreferences")
-            .WithSummary("Returns, per notification type, whether the user wants it in the app and by email.")
+            .WithSummary("Returns, per notification type, whether the user wants it in the app, by email and as a phone push.")
             .Produces<IReadOnlyList<NotificationPreferenceDto>>();
 
         notifications.MapPut("/preferences", async (
@@ -62,7 +62,7 @@ public static class NotificationEndpoints
             CancellationToken ct) =>
             (await handler.Handle(new UpdateNotificationPreferencesCommand(request.Preferences), ct)).ToOk())
             .WithName("UpdateNotificationPreferences")
-            .WithSummary("Switches notification types on or off for the in-app and email channels.")
+            .WithSummary("Switches notification types on or off in the app, by email and as a phone push. Leaving push out keeps its stored value.")
             .Produces<IReadOnlyList<NotificationPreferenceDto>>()
             .ProducesValidationProblem();
 

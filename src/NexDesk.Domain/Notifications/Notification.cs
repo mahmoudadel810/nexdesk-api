@@ -82,7 +82,10 @@ public sealed class Notification : Entity, ITenantOwned
     public void MarkRead(DateTimeOffset now) => ReadAt ??= now;
 }
 
-/// <summary>Whether a user wants one kind of notification in the app and by email. Missing rows mean yes to both.</summary>
+/// <summary>
+/// Whether a user wants one kind of notification in the app, by email and as a push to their phone. Missing rows
+/// mean yes to all three.
+/// </summary>
 public sealed class NotificationPreference : ITenantOwned
 {
     private NotificationPreference()
@@ -99,17 +102,22 @@ public sealed class NotificationPreference : ITenantOwned
 
     public bool Email { get; private set; }
 
-    public static NotificationPreference Create(Guid userId, NotificationType type, bool inApp, bool email) => new()
+    public bool Push { get; private set; } = true;
+
+    public static NotificationPreference Create(Guid userId, NotificationType type, bool inApp, bool email, bool? push = null) => new()
     {
         UserId = userId,
         Type = type,
         InApp = inApp,
         Email = email,
+        Push = push ?? true,
     };
 
-    public void Set(bool inApp, bool email)
+    /// <summary>Changes the channels. A null <paramref name="push"/> keeps the stored choice, for clients that do not know it.</summary>
+    public void Set(bool inApp, bool email, bool? push = null)
     {
         InApp = inApp;
         Email = email;
+        Push = push ?? Push;
     }
 }

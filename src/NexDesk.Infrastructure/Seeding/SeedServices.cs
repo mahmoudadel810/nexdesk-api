@@ -51,6 +51,13 @@ internal sealed class SilentEmails : IEmailDispatcher
     }
 }
 
+internal sealed class SilentPushes : IPushDispatcher
+{
+    public void Enqueue(PushMessage message)
+    {
+    }
+}
+
 public static class SeedServiceCollectionExtensions
 {
     /// <summary>
@@ -67,6 +74,7 @@ public static class SeedServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Scoped<ICurrentCustomer>(provider => provider.GetRequiredService<SeedActor>()));
         services.Replace(ServiceDescriptor.Scoped<IDomainEventDispatcher, SilentDomainEvents>());
         services.Replace(ServiceDescriptor.Scoped<IEmailDispatcher, SilentEmails>());
+        services.Replace(ServiceDescriptor.Scoped<IPushDispatcher, SilentPushes>());
         services.AddScoped<DemoSeeder>();
         return services;
     }

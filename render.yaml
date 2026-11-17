@@ -31,6 +31,10 @@ services:
         value: "true"
       - key: RateLimiting__Enabled
         value: "false"
+      # Phone pushes are logged until a Firebase project exists. To send them, set Push__Provider to Fcm and
+      # add Push__Fcm__ProjectId and Push__Fcm__ServiceAccountJson (the key file's JSON) as secrets.
+      - key: Push__Provider
+        value: Log
       # Render's free disk is wiped on every deploy, so uploaded attachments and logos do not last.
       - key: Storage__RootPath
         value: /var/lib/nexdesk/storage

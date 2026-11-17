@@ -10,6 +10,7 @@ using NexDesk.Application.Developer;
 using NexDesk.Domain.Tickets;
 using NexDesk.Infrastructure.Developer;
 using NexDesk.Infrastructure.Email;
+using NexDesk.Infrastructure.Push;
 using Testcontainers.PostgreSql;
 
 namespace NexDesk.IntegrationTests.Infrastructure;
@@ -27,6 +28,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     public CapturedEmails Emails { get; } = new();
 
     public WebhookReceiver Webhooks { get; } = new();
+
+    public CapturedPushes Pushes { get; } = new();
 
     /// <summary>Ids of tickets whose creation event reached a domain event handler.</summary>
     public ConcurrentBag<Guid> CreatedTicketEvents { get; } = [];
@@ -66,6 +69,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.AddSingleton(Webhooks);
             services.AddHttpClient(DeliverWebhookJob.HttpClientName)
                 .ConfigurePrimaryHttpMessageHandler(provider => new ReceiverHandler(provider.GetRequiredService<WebhookReceiver>()));
+            services.AddSingleton(Pushes);
+            services.RemoveAll<IPushSender>();
+            services.AddSingleton<IPushSender, FakePushSender>();
+            services.RemoveAll<IPushDispatcher>();
+            services.AddScoped<IPushDispatcher, InlinePushDispatcher>();
             services.RemoveAll<IWebhookDispatcher>();
             services.AddScoped<IWebhookDispatcher, InlineWebhookDispatcher>();
             services.AddScoped<IDomainEventHandler<TicketCreated>, FailingTicketCreatedHandler>();

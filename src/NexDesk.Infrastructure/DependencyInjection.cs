@@ -6,12 +6,14 @@ using Microsoft.Extensions.DependencyInjection;
 using NexDesk.Application.Billing;
 using NexDesk.Application.Common;
 using NexDesk.Application.KnowledgeBase;
+using NexDesk.Application.Reports;
 using NexDesk.Infrastructure.Automation;
 using NexDesk.Infrastructure.Billing;
 using NexDesk.Infrastructure.Email;
 using NexDesk.Infrastructure.Identity;
 using NexDesk.Infrastructure.KnowledgeBase;
 using NexDesk.Infrastructure.Persistence;
+using NexDesk.Infrastructure.Reports;
 using NexDesk.Infrastructure.Sla;
 using NexDesk.Infrastructure.Tenancy;
 using NexDesk.Infrastructure.Tickets;
@@ -79,6 +81,7 @@ public static class DependencyInjection
         services.AddScoped<SubscriptionRenewalJob>();
         services.AddScoped<CleanupJob>();
         services.AddScoped<IUsageMeter, UsageMeter>();
+        services.AddScoped<IReportQueries, ReportQueries>();
         services.AddSingleton<IInvoiceRenderer, InvoicePdfRenderer>();
         services.AddSingleton<IPlanRateLimits, PlanRateLimits>();
         if (configuration.GetValue("Jobs:RecurringEnabled", true))

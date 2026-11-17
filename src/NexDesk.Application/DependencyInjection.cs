@@ -6,6 +6,7 @@ using NexDesk.Application.Billing;
 using NexDesk.Application.Common;
 using NexDesk.Application.Notifications;
 using NexDesk.Application.Portal;
+using NexDesk.Application.Reports;
 using NexDesk.Application.Sla;
 using NexDesk.Application.Tenants;
 using NexDesk.Application.Tickets;
@@ -31,6 +32,7 @@ public static class DependencyInjection
         services.AddScoped<Notifier>();
         services.AddScoped<IEntitlementService, EntitlementService>();
         services.AddScoped<BillingService>();
+        services.AddScoped<ReportService>();
         services.AddScoped<AutomationRunState>();
         services.AddScoped<AutomationEngine>();
         services.AddScoped<RuleDefinitionChecker>();

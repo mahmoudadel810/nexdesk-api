@@ -202,6 +202,29 @@ public sealed class Ticket : AuditableEntity, ITenantOwned, ISoftDeletable
         Status = status;
         SolvedAt = status is TicketStatus.Solved or TicketStatus.Closed ? SolvedAt ?? now : null;
         ClosedAt = status == TicketStatus.Closed ? now : null;
+        if (status == TicketStatus.Solved)
+        {
+            Raise(new TicketSolved(Id));
+        }
+    }
+
+    /// <summary>Stores the customer's satisfaction rating. A later rating replaces an earlier one.</summary>
+    public CsatResponse? Rate(CsatResponse? existing, int rating, string? comment, Guid customerId, DateTimeOffset now)
+    {
+        if (Status is not (TicketStatus.Solved or TicketStatus.Closed))
+        {
+            throw new InvalidOperationException("Only a solved ticket can be rated.");
+        }
+
+        _events.Add(TicketEvent.Create(
+            Id, TicketEventType.CsatSubmitted, Actor.Customer(customerId), existing?.Rating.ToString(), rating.ToString(), now));
+        if (existing is not null)
+        {
+            existing.Update(rating, comment, now);
+            return null;
+        }
+
+        return CsatResponse.Create(Id, customerId, rating, comment, now);
     }
 
     public void ChangePriority(TicketPriority priority, Actor actor, DateTimeOffset now)
@@ -560,6 +583,8 @@ public sealed record TicketCreated(Guid TicketId) : IDomainEvent;
 public sealed record TicketChanged(Guid TicketId) : IDomainEvent;
 
 public sealed record TicketMessageAdded(Guid TicketId, Guid MessageId, Actor Author, bool IsInternal) : IDomainEvent;
+
+public sealed record TicketSolved(Guid TicketId) : IDomainEvent;
 
 public sealed record TicketAssigned(Guid TicketId, Guid AssigneeId, Actor AssignedBy) : IDomainEvent;
 

@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NexDesk.Application.Auth;
 using NexDesk.Application.Common;
 using NexDesk.Application.Notifications;
+using NexDesk.Application.Portal;
 using NexDesk.Application.Sla;
 using NexDesk.Application.Tenants;
 using NexDesk.Application.Tickets;
@@ -23,8 +24,11 @@ public static class DependencyInjection
         services.AddScoped<TenantProvisioner>();
         services.AddScoped<TicketWriter>();
         services.AddScoped<CustomFieldValues>();
+        services.AddScoped<AttachmentStore>();
         services.AddScoped<SlaEngine>();
         services.AddScoped<Notifier>();
+        services.AddScoped<PortalSessions>();
+        services.AddScoped<CsatRecorder>();
         services.AddScoped<ITicketSaveHook>(provider => provider.GetRequiredService<SlaEngine>());
 
         foreach (var implementation in assembly.GetTypes().Where(t => t is { IsClass: true, IsAbstract: false }))

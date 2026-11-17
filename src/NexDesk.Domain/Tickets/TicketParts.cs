@@ -51,6 +51,7 @@ public enum TicketEventType
     MergedInto,
     MergedFrom,
     SlaBreached,
+    CsatSubmitted,
 }
 
 /// <summary>One entry of the activity timeline. Values are stored as display text so history survives renames.</summary>
@@ -112,6 +113,49 @@ public sealed class TicketWatcher : ITenantOwned
     public Guid TicketId { get; private set; }
 
     public Guid UserId { get; private set; }
+}
+
+/// <summary>How satisfied the customer was with the way a ticket was handled, from 1 (bad) to 5 (great).</summary>
+public sealed class CsatResponse : Entity, ITenantOwned
+{
+    public const int MinRating = 1;
+    public const int MaxRating = 5;
+    public const int CommentMaxLength = 1000;
+
+    private CsatResponse()
+    {
+    }
+
+    public Guid TenantId { get; private set; }
+
+    public Guid TicketId { get; private set; }
+
+    public Guid CustomerId { get; private set; }
+
+    public int Rating { get; private set; }
+
+    public string? Comment { get; private set; }
+
+    public DateTimeOffset CreatedAt { get; private set; }
+
+    internal static CsatResponse Create(Guid ticketId, Guid customerId, int rating, string? comment, DateTimeOffset now)
+    {
+        var response = new CsatResponse { TicketId = ticketId, CustomerId = customerId };
+        response.Update(rating, comment, now);
+        return response;
+    }
+
+    internal void Update(int rating, string? comment, DateTimeOffset now)
+    {
+        if (rating is < MinRating or > MaxRating)
+        {
+            throw new ArgumentOutOfRangeException(nameof(rating), "A rating is a whole number from 1 to 5.");
+        }
+
+        Rating = rating;
+        Comment = string.IsNullOrWhiteSpace(comment) ? null : comment.Trim();
+        CreatedAt = now;
+    }
 }
 
 /// <summary>An uploaded file. It starts unattached and is linked to a message when that message is posted.</summary>

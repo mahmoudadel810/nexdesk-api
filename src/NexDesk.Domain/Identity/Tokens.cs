@@ -65,6 +65,7 @@ public enum OneTimeTokenPurpose
 {
     EmailVerification,
     PasswordReset,
+    CsatSurvey,
 }
 
 public sealed class OneTimeToken : Entity

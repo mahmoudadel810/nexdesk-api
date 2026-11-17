@@ -50,6 +50,8 @@ public interface IAppDbContext
 
     DbSet<SlaBreach> SlaBreaches { get; }
 
+    DbSet<CsatResponse> CsatResponses { get; }
+
     DbSet<Notification> Notifications { get; }
 
     DbSet<NotificationPreference> NotificationPreferences { get; }
@@ -75,6 +77,12 @@ public interface ITenantScopeFactory
 public interface ICurrentUser
 {
     Guid? UserId { get; }
+}
+
+/// <summary>The portal customer making the request, if any.</summary>
+public interface ICurrentCustomer
+{
+    Guid? CustomerId { get; }
 }
 
 /// <summary>Marks a class that is allowed to read across tenants by ignoring the tenant query filter.</summary>
@@ -151,6 +159,8 @@ public interface ITokenService
 {
     AccessToken CreateStaffAccessToken(User user);
 
+    AccessToken CreateCustomerAccessToken(Customer customer);
+
     /// <summary>Creates a random URL-safe secret. Only its hash is ever stored.</summary>
     string CreateSecret();
 
@@ -160,6 +170,8 @@ public interface ITokenService
 public interface ISessionStateCache
 {
     void Invalidate(Guid userId);
+
+    void InvalidateCustomer(Guid customerId);
 }
 
 public sealed record EmailMessage(

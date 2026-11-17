@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication;
 using NexDesk.Api.Auth;
 using NexDesk.Api.Endpoints;
 using NexDesk.Application.Auth;
@@ -11,6 +12,13 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(HttpContext context, ITenantScopeFactory tenantScopes)
     {
+        // Portal requests carry a customer token, which the default (staff) scheme does not accept.
+        if (context.Request.Path.StartsWithSegments("/api/v1/portal")
+            && await context.AuthenticateAsync(AuthenticationSetup.PortalScheme) is { Succeeded: true } portal)
+        {
+            context.User = portal.Principal;
+        }
+
         if (context.Items.ContainsKey(AuthenticationSetup.TenantSuspendedItem))
         {
             await AuthErrors.TenantSuspended.ToProblem().ExecuteAsync(context);

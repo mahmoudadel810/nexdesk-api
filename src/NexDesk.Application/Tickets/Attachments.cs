@@ -7,34 +7,38 @@ namespace NexDesk.Application.Tickets;
 public sealed record UploadAttachmentCommand(string FileName, string ContentType, long SizeBytes, Stream Content)
     : ICommand<AttachmentDto>;
 
-internal sealed class UploadAttachmentHandler(
-    IAppDbContext db,
-    ITenantContext tenant,
-    ICurrentUser currentUser,
-    IFileStorage storage,
-    TimeProvider clock) : ICommandHandler<UploadAttachmentCommand, AttachmentDto>
+internal sealed class UploadAttachmentHandler(AttachmentStore store, ICurrentUser currentUser)
+    : ICommandHandler<UploadAttachmentCommand, AttachmentDto>
 {
-    public async Task<Result<AttachmentDto>> Handle(UploadAttachmentCommand command, CancellationToken cancellationToken)
+    public Task<Result<AttachmentDto>> Handle(UploadAttachmentCommand command, CancellationToken cancellationToken) =>
+        store.UploadAsync(
+            currentUser.AsActor(), command.FileName, command.ContentType, command.SizeBytes, command.Content, cancellationToken);
+}
+
+/// <summary>Validates and stores an uploaded file for whoever uploads it: an agent or a portal customer.</summary>
+public sealed class AttachmentStore(IAppDbContext db, ITenantContext tenant, IFileStorage storage, TimeProvider clock)
+{
+    public async Task<Result<AttachmentDto>> UploadAsync(
+        NexDesk.Domain.Common.Actor uploader,
+        string? fileName,
+        string contentType,
+        long sizeBytes,
+        Stream content,
+        CancellationToken cancellationToken)
     {
-        if (command.SizeBytes is <= 0 or > Attachment.MaxSizeBytes)
+        if (sizeBytes is <= 0 or > Attachment.MaxSizeBytes)
         {
             return TicketErrors.FileTooLarge;
         }
 
-        var fileName = Path.GetFileName(command.FileName ?? string.Empty);
-        if (fileName.Length is 0 or > Attachment.FileNameMaxLength || !Attachment.IsAllowedFileName(fileName))
+        var name = Path.GetFileName(fileName ?? string.Empty);
+        if (name.Length is 0 or > Attachment.FileNameMaxLength || !Attachment.IsAllowedFileName(name))
         {
             return TicketErrors.FileTypeBlocked;
         }
 
-        var attachment = Attachment.Create(
-            tenant.TenantId!.Value,
-            fileName,
-            command.ContentType,
-            command.SizeBytes,
-            currentUser.AsActor(),
-            clock.GetUtcNow());
-        await storage.SaveAsync(attachment.StorageKey, command.Content, cancellationToken);
+        var attachment = Attachment.Create(tenant.TenantId!.Value, name, contentType, sizeBytes, uploader, clock.GetUtcNow());
+        await storage.SaveAsync(attachment.StorageKey, content, cancellationToken);
         db.Attachments.Add(attachment);
         await db.SaveChangesAsync(cancellationToken);
         return new AttachmentDto(attachment.Id, attachment.FileName, attachment.ContentType, attachment.SizeBytes);

@@ -1,0 +1,36 @@
+# Render Blueprint for the hosted demo: the API as a Docker web service in Frankfurt, next to its
+# Supabase Postgres. Secrets marked sync: false are entered in the Render dashboard, never committed.
+services:
+  - type: web
+    name: nexdesk-api
+    runtime: docker
+    region: frankfurt
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health/live
+    autoDeploy: true
+    branch: main
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: PORT
+        value: "8080"
+      # Supabase session pooler (IPv4), e.g.
+      # Host=aws-1-eu-central-1.pooler.supabase.com;Port=5432;Database=postgres;Username=nexdesk.<project-ref>;
+      # Password=...;SSL Mode=Require;Maximum Pool Size=12
+      - key: ConnectionStrings__Postgres
+        sync: false
+      - key: Jwt__SigningKey
+        generateValue: true
+      - key: Inbound__Secret
+        generateValue: true
+      - key: App__WebBaseUrl
+        value: https://nexdesk-web.vercel.app
+      # No mail server in the demo: emails are logged by kind and domain instead of sent.
+      - key: Email__LogOnly
+        value: "true"
+      - key: RateLimiting__Enabled
+        value: "false"
+      # Render's free disk is wiped on every deploy, so uploaded attachments and logos do not last.
+      - key: Storage__RootPath
+        value: /var/lib/nexdesk/storage

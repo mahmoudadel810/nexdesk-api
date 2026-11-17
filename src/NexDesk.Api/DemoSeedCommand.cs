@@ -12,6 +12,7 @@ public static class DemoSeedCommand
         {
             null => null,
             "--seed=small" => SeedSize.Small,
+            "--seed=medium" => SeedSize.Medium,
             _ => SeedSize.Full,
         };
     }

@@ -28,6 +28,9 @@ public enum SeedSize
 
     /// <summary>A few weeks and a handful of tickets, for automated tests.</summary>
     Small,
+
+    /// <summary>Everything in <see cref="Full"/>, plus thirty random Saudi companies with months of history each.</summary>
+    Medium,
 }
 
 public sealed record SeedResult(bool Seeded, string Message);
@@ -48,9 +51,47 @@ public sealed class DemoSeeder(
         [TicketPriority.Low, TicketPriority.Normal, TicketPriority.Normal, TicketPriority.Normal,
          TicketPriority.Normal, TicketPriority.High, TicketPriority.High, TicketPriority.Urgent];
 
+    public const int SaudiWorkspaceCount = 30;
+
     public async Task<SeedResult> SeedAsync(SeedSize size, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
+        var demo = await SeedDemoAsync(size == SeedSize.Small ? SeedSize.Small : SeedSize.Full, now, cancellationToken);
+        if (size != SeedSize.Medium)
+        {
+            return demo;
+        }
+
+        var saudi = SaudiContent.Generate(SaudiWorkspaceCount, seed: 2026, now);
+        await using (var scope = scopes.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var slugs = saudi.Select(w => w.Slug).ToList();
+            if (await db.Tenants.AnyAsync(t => slugs.Contains(t.Slug), cancellationToken))
+            {
+                return new SeedResult(demo.Seeded, $"{demo.Message} The Saudi workspaces are already there.");
+            }
+        }
+
+        try
+        {
+            for (var index = 0; index < saudi.Length; index++)
+            {
+                await SeedWorkspaceAsync(saudi[index], now, 120, 1.0, seed: 500 + index, cancellationToken);
+            }
+        }
+        finally
+        {
+            clock.Reset();
+            actor.Set(Actor.System);
+        }
+
+        var before = demo.Seeded ? demo.Message : "The demo workspaces were already there.";
+        return new SeedResult(true, $"{before} Added {saudi.Length} Saudi workspaces.");
+    }
+
+    private async Task<SeedResult> SeedDemoAsync(SeedSize size, DateTimeOffset now, CancellationToken cancellationToken)
+    {
         var workspaces = new[] { DemoContent.BrightPath, DemoContent.Souqna };
         var background = size == SeedSize.Full ? DemoContent.Background : DemoContent.Background[..2];
 
@@ -117,6 +158,7 @@ public sealed class DemoSeeder(
         CancellationToken cancellationToken)
     {
         var random = new Random(seed);
+        days = content.Days ?? days;
         var zone = TimeZoneInfo.FindSystemTimeZoneById(content.Timezone);
         var start = LocalTime(zone, now.AddDays(-days), 8, 30);
 
@@ -170,7 +212,23 @@ public sealed class DemoSeeder(
             workspace.Teams[team.Key] = (created.Id, team.Name, team.MemberKeys);
         }
 
-        if (content.Language == "en")
+        if (content.Fields is { } fields)
+        {
+            foreach (var (field, index) in fields.Select((f, i) => (f, i)))
+            {
+                db.CustomFields.Add(CustomField.Create(field.Key, field.Label, field.Type, field.Options, false, index));
+            }
+
+            var key = ApiKey.Issue(
+                content.Language == "en" ? "ERP sync" : "ربط نظام ERP",
+                Convert.ToHexStringLower(BitConverter.GetBytes(random.NextInt64()))[..12],
+                "seeded-key-hash-is-never-usable",
+                [ApiScopes.TicketsRead, ApiScopes.TicketsWrite],
+                null);
+            db.ApiKeys.Add(key);
+            workspace.ApiKey = key.Id;
+        }
+        else if (content.Language == "en")
         {
             db.CustomFields.Add(CustomField.Create("account_id", "Account ID", CustomFieldType.Text, null, false, 0));
             db.CustomFields.Add(CustomField.Create(
@@ -229,6 +287,11 @@ public sealed class DemoSeeder(
 
         await billing.RenewDueAsync(db, now, this, cancellationToken);
         await SeedNotificationsAsync(db, workspace, now, cancellationToken);
+        if (content.Extras)
+        {
+            await SeedExtrasAsync(db, workspace, now, random, cancellationToken);
+        }
+
         logger.LogInformation("Seeded workspace {Slug} with {Count} tickets", content.Slug, workspace.TicketCount);
     }
 
@@ -250,6 +313,13 @@ public sealed class DemoSeeder(
         var agent = workspace.People[agentKey];
         var priority = Priorities[random.Next(Priorities.Length)];
         var requester = await RequesterAsync(db, workspace, openedAt, random, cancellationToken);
+        if (content.Variables is { } variables)
+        {
+            var values = variables(random);
+            var teammates = workspace.People.Values.Where(p => p.Id != agent.Id && p.Role != Role.Viewer).ToList();
+            values["teammate"] = teammates.Count > 0 ? teammates[random.Next(teammates.Count)].Name : agent.Name;
+            topic = Fill(topic, values);
+        }
 
         var roll = random.NextDouble();
         var (channel, opener) =
@@ -262,9 +332,11 @@ public sealed class DemoSeeder(
         var recent = now - openedAt < TimeSpan.FromDays(2);
         var assignNow = !recent || random.NextDouble() > 0.3;
         var lingering = now - openedAt < TimeSpan.FromDays(21) && random.NextDouble() < 0.35;
-        Dictionary<string, string?>? fields = content.Language == "en"
-            ? new() { ["account_id"] = $"ACC-{random.Next(10000, 99999)}", ["product_area"] = topic.ProductArea }
-            : null;
+        Dictionary<string, string?>? fields = content.Fields is { } defined
+            ? defined.ToDictionary(f => f.Key, f => (string?)topic.Variables?.GetValueOrDefault(f.Variable))
+            : content.Language == "en"
+                ? new() { ["account_id"] = $"ACC-{random.Next(10000, 99999)}", ["product_area"] = topic.ProductArea }
+                : null;
 
         clock.Set(openedAt);
         actor.Set(opener);
@@ -486,9 +558,11 @@ public sealed class DemoSeeder(
         }
 
         var name = content.CustomerNames[index];
-        var email = content.Language == "en"
-            ? $"{name.ToLowerInvariant().Replace(' ', '.')}@{content.CustomerDomain}"
-            : $"customer{index + 1}.{content.Slug}@{content.CustomerDomain}";
+        var email = content.CustomerEmails is { } emails
+            ? emails[index]
+            : content.Language == "en"
+                ? $"{name.ToLowerInvariant().Replace(' ', '.')}@{content.CustomerDomain}"
+                : $"customer{index + 1}.{content.Slug}@{content.CustomerDomain}";
         var customer = Customer.Create(email, name);
         db.Customers.Add(customer);
         await SaveAsync(db, at, Actor.System, cancellationToken);
@@ -545,7 +619,9 @@ public sealed class DemoSeeder(
             new RuleDefinition(
                 ConditionMatch.Any,
                 [new RuleCondition(ConditionField.Subject, ConditionOperator.Contains, english ? "invoice" : "فاتورة")],
-                [new RuleAction(RuleActionType.AssignTeam, english ? firstTeam : workspace.Teams["payments"].Id.ToString())]),
+                [new RuleAction(
+                    RuleActionType.AssignTeam,
+                    workspace.Teams.TryGetValue("payments", out var payments) ? payments.Id.ToString() : firstTeam)]),
             0,
             true));
         db.AutomationRules.Add(AutomationRule.Create(
@@ -690,6 +766,107 @@ public sealed class DemoSeeder(
             await SaveAsync(db, suspended, Actor.System, cancellationToken);
         }
 
+        db.ChangeTracker.Clear();
+    }
+
+    /// <summary>A copy of the topic for one ticket, with {city}, {ref} and the other variables filled in.</summary>
+    private static DemoTopic Fill(DemoTopic topic, Dictionary<string, string> values)
+    {
+        string Apply(string text) =>
+            values.Aggregate(text, (current, pair) => current.Replace($"{{{pair.Key}}}", pair.Value, StringComparison.Ordinal));
+
+        return topic with
+        {
+            Subjects = topic.Subjects.Select(Apply).ToArray(),
+            Description = Apply(topic.Description),
+            AgentReply = Apply(topic.AgentReply),
+            CustomerFollowUp = Apply(topic.CustomerFollowUp),
+            ClosingReply = Apply(topic.ClosingReply),
+            InternalNote = topic.InternalNote is { } note ? Apply(note) : null,
+            Variables = values,
+        };
+    }
+
+    /// <summary>
+    /// What a workspace that has been running for a while also has: an integration whose webhook has a delivery
+    /// history (paused, so nothing is sent to the made-up address), saved views and an invitation waiting for an answer.
+    /// </summary>
+    private async Task SeedExtrasAsync(
+        AppDbContext db,
+        SeededWorkspace workspace,
+        DateTimeOffset now,
+        Random random,
+        CancellationToken cancellationToken)
+    {
+        var content = workspace.Content;
+        var english = content.Language == "en";
+        var owner = Actor.Staff(workspace.Owner);
+
+        var endpoint = WebhookEndpoint.Create(
+            $"https://hooks.{content.Slug}.demo/nexdesk",
+            english ? "ERP ticket sync" : "مزامنة التذاكر مع نظام ERP",
+            [WebhookEvents.TicketCreated, WebhookEvents.TicketSolved],
+            Convert.ToHexStringLower(BitConverter.GetBytes(random.NextInt64())));
+        db.WebhookEndpoints.Add(endpoint);
+        await SaveAsync(db, now.AddDays(-30), owner, cancellationToken);
+
+        for (var d = 0; d < 24; d++)
+        {
+            var at = now.AddDays(-28 + d).AddMinutes(random.Next(0, 600));
+            var delivery = WebhookDelivery.Queue(
+                endpoint.Id,
+                d % 3 == 0 ? WebhookEvents.TicketSolved : WebhookEvents.TicketCreated,
+                $$"""{"event":"{{(d % 3 == 0 ? WebhookEvents.TicketSolved : WebhookEvents.TicketCreated)}}","workspace":"{{content.Slug}}"}""",
+                at);
+            var roll = random.NextDouble();
+            if (roll < 0.8)
+            {
+                delivery.RecordSuccess(at.AddSeconds(1), 200, """{"ok":true}""", random.Next(80, 400));
+            }
+            else if (roll < 0.93)
+            {
+                delivery.RecordFailure(at.AddSeconds(1), 503, "Service Unavailable", "The receiver answered 503.", random.Next(200, 900));
+                delivery.RecordSuccess(at.AddMinutes(1), 200, """{"ok":true}""", random.Next(80, 400));
+            }
+            else
+            {
+                delivery.RecordFailure(at.AddSeconds(10), null, null, "The request timed out after 10 seconds.", 10_000);
+                delivery.Abandon(at.AddHours(9), english ? "Paused while the ERP is being upgraded." : "أوقف مؤقتًا أثناء تحديث نظام ERP.");
+            }
+
+            db.WebhookDeliveries.Add(delivery);
+        }
+
+        endpoint.Update(endpoint.Url, endpoint.Description, endpoint.Events, isEnabled: false);
+        await SaveAsync(db, now.AddDays(-4), owner, cancellationToken);
+
+        var json = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)
+        {
+            Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
+        };
+        var agent = workspace.People.Values.First(p => p.Role == Role.Agent).Id;
+        db.SavedViews.Add(SavedView.Create(
+            workspace.AdminOrOwner,
+            english ? "Urgent and open" : "العاجلة المفتوحة",
+            true,
+            System.Text.Json.JsonSerializer.Serialize(
+                new TicketViewFilter([TicketStatus.New, TicketStatus.Open], [TicketPriority.Urgent, TicketPriority.High], null, null, null, null, "-priority"),
+                json)));
+        db.SavedViews.Add(SavedView.Create(
+            agent,
+            english ? "Waiting on customers" : "بانتظار رد العميل",
+            false,
+            System.Text.Json.JsonSerializer.Serialize(
+                new TicketViewFilter([TicketStatus.Pending], null, "me", null, null, null, null), json)));
+
+        var invitee = $"new.agent@{content.Slug}.demo";
+        db.Invitations.Add(Invitation.Create(
+            invitee,
+            Role.Agent,
+            Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(BitConverter.GetBytes(random.NextInt64()))),
+            workspace.Owner,
+            now.AddDays(-2)));
+        await SaveAsync(db, now.AddDays(-2), owner, cancellationToken);
         db.ChangeTracker.Clear();
     }
 

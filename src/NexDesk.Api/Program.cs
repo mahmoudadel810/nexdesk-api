@@ -49,6 +49,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddNexDeskOpenApi();
 builder.Services.AddNexDeskRateLimiting();
+builder.Services.AddOptions<MobileOptions>().BindConfiguration(MobileOptions.SectionName);
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     // The reverse proxy runs next to the API on a private network, so a forwarded address is only
@@ -124,6 +125,7 @@ v1.MapTicketEndpoints();
 v1.MapSlaEndpoints();
 v1.MapNotificationEndpoints();
 v1.MapDeviceEndpoints();
+v1.MapMobileEndpoints();
 v1.MapKnowledgeBaseEndpoints();
 v1.MapAutomationEndpoints();
 v1.MapBillingEndpoints();

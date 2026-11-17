@@ -11,31 +11,39 @@ namespace NexDesk.Application.Sla;
 /// </summary>
 public sealed class SlaEngine(IAppDbContext db, ITenantContext tenant, TimeProvider clock) : ITicketSaveHook
 {
-    private BusinessCalendar? _calendar;
-    private Dictionary<TicketPriority, SlaPolicy>? _policies;
+    // Cached per tenant, not per scope: a job or the seeder may switch tenants inside one scope.
+    private readonly Dictionary<Guid, BusinessCalendar> _calendars = [];
+    private readonly Dictionary<Guid, Dictionary<TicketPriority, SlaPolicy>> _policies = [];
 
     public async Task BeforeSaveAsync(IReadOnlyCollection<Ticket> tickets, CancellationToken cancellationToken)
     {
-        if (tickets.Count == 0 || tenant.TenantId is null)
+        if (tickets.Count == 0 || tenant.TenantId is not { } tenantId)
         {
             return;
         }
 
         var calendar = await CalendarAsync(cancellationToken);
-        _policies ??= await db.SlaPolicies.AsNoTracking().ToDictionaryAsync(p => p.Priority, cancellationToken);
+        if (!_policies.TryGetValue(tenantId, out var policies))
+        {
+            policies = await db.SlaPolicies.AsNoTracking().ToDictionaryAsync(p => p.Priority, cancellationToken);
+            _policies[tenantId] = policies;
+        }
+
         var now = clock.GetUtcNow();
         foreach (var ticket in tickets)
         {
-            ticket.SyncSla(_policies.GetValueOrDefault(ticket.Priority), calendar, now);
+            ticket.SyncSla(policies.GetValueOrDefault(ticket.Priority), calendar, now);
         }
     }
 
     /// <summary>The working calendar of the tenant in scope: time zone, opening hours and holidays.</summary>
     public async Task<BusinessCalendar> CalendarAsync(CancellationToken cancellationToken)
     {
-        if (_calendar is not null)
+        var tenantId = tenant.TenantId
+            ?? throw new InvalidOperationException("A business calendar belongs to a tenant; none is in scope.");
+        if (_calendars.TryGetValue(tenantId, out var cached))
         {
-            return _calendar;
+            return cached;
         }
 
         var timezone = await db.Tenants.AsNoTracking()
@@ -45,7 +53,7 @@ public sealed class SlaEngine(IAppDbContext db, ITenantContext tenant, TimeProvi
         var week = await db.BusinessHours.AsNoTracking().ToListAsync(cancellationToken);
         var holidays = await db.Holidays.AsNoTracking().Select(h => h.Date).ToListAsync(cancellationToken);
         var zone = TimeZoneInfo.TryFindSystemTimeZoneById(timezone, out var found) ? found : TimeZoneInfo.Utc;
-        return _calendar = new BusinessCalendar(zone, week, holidays);
+        return _calendars[tenantId] = new BusinessCalendar(zone, week, holidays);
     }
 
     /// <summary>

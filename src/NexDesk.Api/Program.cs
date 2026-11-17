@@ -111,6 +111,7 @@ v1.MapKnowledgeBaseEndpoints();
 v1.MapAutomationEndpoints();
 v1.MapBillingEndpoints();
 v1.MapReportEndpoints();
+v1.MapAuditEndpoints();
 v1.MapPortalEndpoints();
 app.MapHub<NotificationsHub>(NotificationsHub.Path);
 

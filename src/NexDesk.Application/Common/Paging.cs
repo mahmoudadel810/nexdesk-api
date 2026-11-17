@@ -52,6 +52,9 @@ public static class CurrentUserExtensions
     public static Guid RequireUserId(this ICurrentUser currentUser) =>
         currentUser.UserId ?? throw new InvalidOperationException("This operation requires a signed-in user.");
 
+    /// <summary>The staff member, or the API key of an integration, making the request.</summary>
     public static NexDesk.Domain.Common.Actor AsActor(this ICurrentUser currentUser) =>
-        NexDesk.Domain.Common.Actor.Staff(currentUser.RequireUserId());
+        currentUser.ApiKeyId is { } apiKeyId
+            ? NexDesk.Domain.Common.Actor.ApiKey(apiKeyId)
+            : NexDesk.Domain.Common.Actor.Staff(currentUser.RequireUserId());
 }

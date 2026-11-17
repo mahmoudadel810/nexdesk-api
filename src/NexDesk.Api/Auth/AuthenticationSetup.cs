@@ -23,6 +23,12 @@ internal sealed class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser,
     }
 }
 
+/// <summary>The caller's address, after the trusted proxy's forwarded headers were applied.</summary>
+internal sealed class HttpRequestOrigin(IHttpContextAccessor accessor) : IRequestOrigin
+{
+    public string? IpAddress => accessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
+}
+
 public static class AuthenticationSetup
 {
     public const string TenantSuspendedItem = "nexdesk.tenant-suspended";
@@ -34,6 +40,7 @@ public static class AuthenticationSetup
         services.AddScoped<CurrentUser>();
         services.AddScoped<ICurrentUser>(provider => provider.GetRequiredService<CurrentUser>());
         services.AddScoped<ICurrentCustomer>(provider => provider.GetRequiredService<CurrentUser>());
+        services.AddScoped<IRequestOrigin, HttpRequestOrigin>();
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer().AddJwtBearer(PortalScheme);
         services.AddOptions<JwtBearerOptions>(PortalScheme)

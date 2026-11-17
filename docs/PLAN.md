@@ -76,13 +76,18 @@ session payload and hides actions accordingly; the backend remains the enforceme
 
 Entities raise domain events (`TicketCreated`, `TicketAssigned`, `ReplyAdded`, `TicketSolved`, …).
 After a successful `SaveChanges`, a dispatcher hands them to in-process handlers. Notifications,
-real-time pushes, automation rules, outbound webhooks and the audit log are all handlers on these
+real-time pushes, automation rules and outbound webhooks are all handlers on these
 events — none of them is called directly from ticket code. Work that can fail independently
 (email, webhook delivery) is enqueued as a Hangfire job from the handler.
 
 ### 1.6 Auditing, soft delete, concurrency
 
 - `AuditableEntity` carries `created_at/by` and `updated_at/by`, filled by an interceptor.
+- The audit log is written from the change tracker inside the same `SaveChanges`, not from domain
+  events: events carry no before/after values and only tickets raise them. A catalog lists the audited
+  records and the fields left out (secrets, and bookkeeping such as SLA deadlines). An update whose only
+  changes are hidden fields writes no entry. Work with no tenant in scope, such as sign-up, is not
+  logged.
 - `ISoftDeletable` entities get `deleted_at/by`; deletes become updates and a query filter hides
   them.
 - Tickets use the Postgres `xmin` system column as a concurrency token. The API returns it as

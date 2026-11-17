@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.Extensions.DependencyInjection;
 using NexDesk.Application.Common;
+using NexDesk.Domain.Audit;
 using NexDesk.Domain.Automation;
 using NexDesk.Domain.Billing;
 using NexDesk.Domain.Common;
@@ -14,6 +15,7 @@ using NexDesk.Domain.Sla;
 using NexDesk.Domain.Teams;
 using NexDesk.Domain.Tenants;
 using NexDesk.Domain.Tickets;
+using NexDesk.Infrastructure.Audit;
 using NexDesk.Infrastructure.Tickets;
 
 namespace NexDesk.Infrastructure.Persistence;
@@ -89,6 +91,8 @@ public sealed class AppDbContext(
 
     public DbSet<UsageCounter> UsageCounters => Set<UsageCounter>();
 
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
     public void DiscardChanges() => ChangeTracker.Clear();
 
     private Guid? CurrentTenantId => tenant.TenantId;
@@ -106,6 +110,12 @@ public sealed class AppDbContext(
             {
                 await hook.BeforeSaveAsync(changedTickets, cancellationToken);
             }
+        }
+
+        // Read before the tenant and soft-delete rules below rewrite entry states.
+        if (services.GetService<AuditRecorder>() is { } audit)
+        {
+            AuditLogs.AddRange(audit.Collect(ChangeTracker));
         }
 
         ApplyTenantAndAudit();

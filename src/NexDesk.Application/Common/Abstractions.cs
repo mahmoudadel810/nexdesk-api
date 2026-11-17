@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using NexDesk.Domain.Audit;
 using NexDesk.Domain.Automation;
 using NexDesk.Domain.Billing;
 using NexDesk.Domain.Common;
@@ -75,6 +76,8 @@ public interface IAppDbContext
 
     DbSet<UsageCounter> UsageCounters { get; }
 
+    DbSet<AuditLog> AuditLogs { get; }
+
     /// <summary>Forgets every tracked change, so an operation can be retried from fresh data.</summary>
     void DiscardChanges();
 
@@ -96,6 +99,15 @@ public interface ITenantScopeFactory
 public interface ICurrentUser
 {
     Guid? UserId { get; }
+
+    /// <summary>The API key a public API request is made with. Such requests have no user.</summary>
+    Guid? ApiKeyId => null;
+}
+
+/// <summary>Where the current request comes from. Empty outside a request, such as in background jobs.</summary>
+public interface IRequestOrigin
+{
+    string? IpAddress { get; }
 }
 
 /// <summary>The portal customer making the request, if any.</summary>

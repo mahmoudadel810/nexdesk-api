@@ -3,10 +3,12 @@ using Hangfire.PostgreSql;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using NexDesk.Application.Billing;
 using NexDesk.Application.Common;
 using NexDesk.Application.KnowledgeBase;
 using NexDesk.Application.Reports;
+using NexDesk.Infrastructure.Audit;
 using NexDesk.Infrastructure.Automation;
 using NexDesk.Infrastructure.Billing;
 using NexDesk.Infrastructure.Email;
@@ -55,6 +57,8 @@ public static class DependencyInjection
         services.AddScoped<IKbSearch, KbSearch>();
         services.AddSingleton<IMarkdownRenderer, MarkdownRenderer>();
         services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
+        services.TryAddScoped<IRequestOrigin, NoRequestOrigin>();
+        services.AddScoped<AuditRecorder>();
 
         services.AddMemoryCache();
         services.AddScoped<IIdentityDirectory, IdentityDirectory>();

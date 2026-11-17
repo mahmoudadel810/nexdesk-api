@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -49,6 +50,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("Inbound:Secret", InboundSecret);
         builder.ConfigureTestServices(services =>
         {
+            services.AddSingleton<IStartupFilter, LoopbackAddressFilter>();
             services.AddSingleton(Emails);
             services.RemoveAll<IEmailDispatcher>();
             services.AddScoped<IEmailDispatcher, CapturingEmailDispatcher>();
@@ -57,6 +59,20 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.AddScoped<IDomainEventHandler<TicketCreated>, RecordingTicketCreatedHandler>();
         });
     }
+}
+
+/// <summary>The in-memory test server leaves the caller's address empty; a real host always has one.</summary>
+internal sealed class LoopbackAddressFilter : IStartupFilter
+{
+    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+    {
+        app.Use((context, nextMiddleware) =>
+        {
+            context.Connection.RemoteIpAddress ??= System.Net.IPAddress.Loopback;
+            return nextMiddleware(context);
+        });
+        next(app);
+    };
 }
 
 /// <summary>Emails the API queued, rendered with the real templates instead of being sent.</summary>

@@ -6,7 +6,8 @@ rules, a knowledge base, real-time notifications and reports. Their customers us
 the people who run NexDesk use a platform console.
 
 This repository is the backend: an ASP.NET Core API on .NET 10 with PostgreSQL. The Angular client lives
-in [nexdesk-web](https://github.com/mahmoudadel810/nexdesk-web).
+in [nexdesk-web](https://github.com/mahmoudadel810/nexdesk-web), and the Flutter app for support teams in
+[nexdesk-mobile](https://github.com/mahmoudadel810/nexdesk-mobile).
 
 ![Agent dashboard](https://raw.githubusercontent.com/mahmoudadel810/nexdesk-web/main/docs/screenshots/dashboard.png)
 

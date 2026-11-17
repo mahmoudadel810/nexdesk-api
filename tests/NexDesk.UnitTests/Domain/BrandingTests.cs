@@ -42,6 +42,19 @@ public sealed class BrandingTests
     }
 
     [Fact]
+    public void A_suspension_keeps_when_it_started_and_reactivating_clears_it()
+    {
+        var tenant = Tenant.Create("Acme", "acme", "UTC", "en");
+
+        tenant.Suspend("  Chargeback  ", Now);
+        tenant.Suspend("Second look", Now.AddDays(1));
+        (tenant.Status, tenant.SuspendedAt, tenant.SuspensionReason).ShouldBe((TenantStatus.Suspended, Now, "Second look"));
+
+        tenant.Reactivate();
+        (tenant.Status, tenant.SuspendedAt, tenant.SuspensionReason).ShouldBe((TenantStatus.Active, null, null));
+    }
+
+    [Fact]
     public void Replacing_a_logo_hands_back_the_old_file_to_delete()
     {
         var tenant = Tenant.Create("Acme", "acme", "UTC", "en");

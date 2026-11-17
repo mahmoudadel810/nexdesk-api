@@ -8,6 +8,7 @@ using NexDesk.Application.Billing;
 using NexDesk.Application.Common;
 using NexDesk.Application.Developer;
 using NexDesk.Application.KnowledgeBase;
+using NexDesk.Application.Platform;
 using NexDesk.Application.Reports;
 using NexDesk.Infrastructure.Audit;
 using NexDesk.Infrastructure.Automation;
@@ -17,6 +18,7 @@ using NexDesk.Infrastructure.Email;
 using NexDesk.Infrastructure.Identity;
 using NexDesk.Infrastructure.KnowledgeBase;
 using NexDesk.Infrastructure.Persistence;
+using NexDesk.Infrastructure.Platform;
 using NexDesk.Infrastructure.Reports;
 using NexDesk.Infrastructure.Sla;
 using NexDesk.Infrastructure.Tenancy;
@@ -63,6 +65,9 @@ public static class DependencyInjection
         services.AddScoped<AuditRecorder>();
         services.AddScoped<IApiKeyDirectory, ApiKeyDirectory>();
         services.AddWebhookDelivery();
+        services.AddScoped<IPlatformQueries, PlatformQueries>();
+        services.AddOptions<PlatformAdminOptions>().BindConfiguration(PlatformAdminOptions.SectionName);
+        services.AddHostedService<PlatformAdminBootstrap>();
 
         services.AddMemoryCache();
         services.AddScoped<IIdentityDirectory, IdentityDirectory>();

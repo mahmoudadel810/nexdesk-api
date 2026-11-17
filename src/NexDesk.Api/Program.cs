@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.HttpOverrides;
+using NexDesk.Api.Admin;
 using NexDesk.Api.Auth;
 using NexDesk.Api.Endpoints;
 using NexDesk.Api.Middleware;
@@ -33,6 +34,7 @@ builder.Services.AddOptions<InboundOptions>().BindConfiguration(InboundOptions.S
 builder.Services.AddSignalR().AddJsonProtocol(options =>
     options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddSingleton<IRealtimeNotifier, SignalRRealtimeNotifier>();
+builder.Services.AddSingleton<NexDesk.Api.Admin.JobsDashboardAccess>();
 
 builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
 {
@@ -114,6 +116,8 @@ v1.MapReportEndpoints();
 v1.MapAuditEndpoints();
 v1.MapDeveloperEndpoints();
 v1.MapSettingsEndpoints();
+v1.MapAdminEndpoints();
+app.MapJobsDashboard();
 app.MapPublicApiEndpoints();
 v1.MapPortalEndpoints();
 app.MapHub<NotificationsHub>(NotificationsHub.Path);

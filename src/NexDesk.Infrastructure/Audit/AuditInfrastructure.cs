@@ -178,8 +178,10 @@ internal sealed class AuditRecorder(
         return entries;
     }
 
+    // A platform admin is not a member of the workspace, so the workspace sees their actions as NexDesk's.
     private Actor CurrentActor() =>
-        currentUser.ApiKeyId is { } apiKeyId ? Actor.ApiKey(apiKeyId)
+        currentUser.IsPlatformAdmin ? Actor.System
+        : currentUser.ApiKeyId is { } apiKeyId ? Actor.ApiKey(apiKeyId)
         : currentUser.UserId is { } userId ? Actor.Staff(userId)
         : currentCustomer?.CustomerId is { } customerId ? Actor.Customer(customerId)
         : Actor.System;

@@ -93,6 +93,25 @@ file's first bytes, so a script renamed to `.png` is refused. It counts toward t
 served publicly from `/api/v1/portal/{slug}/logo?v={timestamp}`. The address changes with every new logo,
 so the image is cached for a week with `immutable`.
 
+## Platform admin console
+
+The platform admin runs NexDesk itself and belongs to no workspace. The API creates the account on
+startup from `PLATFORM_ADMIN_EMAIL` and `PLATFORM_ADMIN_PASSWORD` in `.env` if that address has no account
+yet; it never overwrites an existing one. The admin signs in on the normal sign-in page and lands on
+`/admin` in the web client, which uses `/api/v1/admin/...`:
+
+- every workspace with its plan, team size, this month's tickets and owner, searchable and filterable
+- a read-only overview of one workspace: usage against plan limits, totals, admins and recent invoices.
+  It never shows ticket or customer content, and there is no way to act as the workspace
+- suspending and reactivating a workspace. Suspension takes effect on the team's, customers' and API
+  keys' next request, nothing is deleted, and the workspace's audit log shows the change as made by NexDesk
+- monthly recurring revenue now and by plan, revenue under contract at each month's end (from paid
+  invoices), and sign-ups per month
+
+The Hangfire dashboard is at `/hangfire` and opens only through a single-use link the console asks the
+API for (`POST /api/v1/admin/jobs-dashboard`). The link works once within a minute and becomes an
+HttpOnly session cookie that is sent only to `/hangfire`.
+
 ## Public API, webhooks and the audit log
 
 Workspaces on a plan with API access (Business) can issue API keys under Developers. A key is shown

@@ -14,6 +14,9 @@ internal sealed class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser,
 
     public Guid? CustomerId => SubjectOf(JwtOptions.PortalAudience);
 
+    public bool IsPlatformAdmin =>
+        UserId is not null && accessor.HttpContext?.User.FindFirst(NexDeskClaims.PlatformAdmin)?.Value == "true";
+
     public Guid? ApiKeyId
     {
         get
@@ -109,6 +112,14 @@ public static class AuthenticationSetup
         services.AddAuthorization();
         return services;
     }
+
+    /// <summary>Requires a signed-in platform admin, who runs NexDesk rather than a workspace.</summary>
+    public static TBuilder RequirePlatformAdmin<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.RequireAuthorization(policy => policy
+            .RequireAuthenticatedUser()
+            .RequireClaim("aud", JwtOptions.StaffAudience)
+            .RequireClaim(NexDeskClaims.PlatformAdmin, "true"));
 
     /// <summary>Requires an API key that was granted <paramref name="scope"/>.</summary>
     public static TBuilder RequireApiScope<TBuilder>(this TBuilder builder, string scope)

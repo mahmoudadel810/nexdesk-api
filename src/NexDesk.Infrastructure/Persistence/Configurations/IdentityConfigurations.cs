@@ -19,6 +19,8 @@ internal sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.Property(t => t.PortalWelcomeText).HasMaxLength(Tenant.WelcomeTextMaxLength);
         builder.Property(t => t.LogoFileKey).HasMaxLength(200);
         builder.Property(t => t.LogoContentType).HasMaxLength(64);
+        builder.Property(t => t.SuspensionReason).HasMaxLength(Tenant.SuspensionReasonMaxLength);
+        builder.HasIndex(t => t.CreatedAt);
         builder.HasIndex(t => t.Slug).IsUnique();
     }
 }

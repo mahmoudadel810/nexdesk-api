@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using NexDesk.Api.Auth;
+using NexDesk.Api.RateLimiting;
 using NexDesk.Application.Common;
 using NexDesk.Application.Inbound;
 using NexDesk.Application.Portal;
@@ -54,7 +55,7 @@ public static class PortalEndpoints
             .Produces<PortalInfoDto>()
             .ProducesProblem(StatusCodes.Status404NotFound);
 
-        MapAuth(portal.MapGroup("/auth"));
+        MapAuth(portal.MapGroup("/auth").RequireRateLimiting(RateLimitingSetup.AuthPolicy));
         MapTickets(portal);
         MapSurvey(portal.MapGroup("/csat"));
         portal.MapGroup("/kb").WithTags("Help centre articles").MapPortalKnowledgeBase();

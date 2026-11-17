@@ -97,6 +97,15 @@ few handlers that consume a limit: inviting and reactivating staff, creating tic
 attachments, adding automation rules and issuing API keys. Attachments record their size from
 the start so storage usage can be computed without a backfill.
 
+Limits answer with `402 Payment Required` and a code such as `plan-limit-agents`, which the web client
+turns into an upgrade prompt. Tickets opened per month are counted in `usage_counters` with one atomic
+upsert per ticket, so deleting tickets does not hand the allowance back; the other figures are counted
+from the rows themselves. Payments are simulated: checkout validates a card number, keeps only its
+brand and last four digits, and issues an invoice that is paid on the spot.
+
+Requests are rate limited per minute: a workspace's staff share the allowance of its plan, everyone
+else is limited per address, and sign-in and other credential endpoints have a much smaller budget.
+
 ### 1.7a Tenant provisioning
 
 `TenantProvisioner.AddDefaults()` creates the rows every workspace needs (business hours, and
@@ -247,7 +256,7 @@ erDiagram
 ```
 
 Supporting tables not drawn above: `refresh_tokens`, `one_time_tokens`, `invitations`,
-`notification_preferences`, `usage_counters` (tickets per month, storage bytes), `ticket_sequences`
+`notification_preferences`, `usage_counters` (tickets opened per month), `ticket_sequences`
 (per-tenant ticket numbers) and Hangfire's own schema.
 
 ## 3. API surface (`/api/v1`)
@@ -289,11 +298,11 @@ groups from their token; events are `ticketCreated`, `ticketUpdated`, `ticketAss
 | Job | Schedule | Purpose |
 |-----|----------|---------|
 | `SlaSweepJob` | every minute | find tickets past a deadline, record the breach, notify and escalate |
-| `TimeBasedAutomationJob` | every 5 minutes | evaluate time-based rules ("pending for 48h") |
+| `AutomationSweepJob` | every 5 minutes | evaluate time-based rules ("pending for 48h") |
 | `SendEmailJob` | on demand, retried | deliver one templated email |
 | `DeliverWebhookJob` | on demand, exponential backoff | sign and POST one webhook delivery |
-| `UsageMeteringJob` | hourly | reconcile usage counters with actual rows |
-| `TokenCleanupJob` | daily | delete expired refresh and one-time tokens |
+| `SubscriptionRenewalJob` | hourly | bill the next month of paid subscriptions whose period ended |
+| `CleanupJob` | daily | delete expired tokens and invitations, and old automation log entries |
 
 ## 5. Testing strategy
 
@@ -315,10 +324,5 @@ format check, unit tests and a production build for the web client.
 
 ### 6.1 Carried into later phases
 
-- **Rate limiting (phase 10):** the public help-centre endpoints that write — the article view counter
-  and the feedback vote — take anonymous requests and need a per-address limit.
-- **Log retention (phase 10):** `automation_executions` grows with every run. A time-based rule that
-  does not measure inactivity uses its old rows to know a ticket was already handled, so pruning must
-  keep the newest row per rule and ticket.
 - **Demo data (phase 15):** tickets seeded with dates in the past are due for every time-based rule on
   the first sweep. Seeded rules therefore name a status.

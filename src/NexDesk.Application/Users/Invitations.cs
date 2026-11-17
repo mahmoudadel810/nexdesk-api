@@ -2,6 +2,7 @@ using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using NexDesk.Application.Auth;
+using NexDesk.Application.Billing;
 using NexDesk.Application.Common;
 using NexDesk.Domain.Identity;
 using NexDesk.Domain.Tenants;
@@ -104,6 +105,7 @@ internal sealed class CreateInvitationHandler(
     IIdentityDirectory directory,
     ICurrentUser currentUser,
     InvitationMailer mailer,
+    IEntitlementService entitlements,
     TimeProvider clock) : ICommandHandler<CreateInvitationCommand, InvitationDto>
 {
     public async Task<Result<InvitationDto>> Handle(CreateInvitationCommand command, CancellationToken cancellationToken)
@@ -127,6 +129,11 @@ internal sealed class CreateInvitationHandler(
             cancellationToken))
         {
             return InvitationErrors.AlreadyPending;
+        }
+
+        if (command.Role != Role.Viewer && await entitlements.CanAddAgent(cancellationToken) is { } limit)
+        {
+            return limit;
         }
 
         var secret = mailer.NewToken(out var hash);

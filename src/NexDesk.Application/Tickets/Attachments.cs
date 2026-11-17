@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using NexDesk.Application.Billing;
 using NexDesk.Application.Common;
 using NexDesk.Domain.Tickets;
 
@@ -16,7 +17,12 @@ internal sealed class UploadAttachmentHandler(AttachmentStore store, ICurrentUse
 }
 
 /// <summary>Validates and stores an uploaded file for whoever uploads it: an agent or a portal customer.</summary>
-public sealed class AttachmentStore(IAppDbContext db, ITenantContext tenant, IFileStorage storage, TimeProvider clock)
+public sealed class AttachmentStore(
+    IAppDbContext db,
+    ITenantContext tenant,
+    IFileStorage storage,
+    IEntitlementService entitlements,
+    TimeProvider clock)
 {
     public async Task<Result<AttachmentDto>> UploadAsync(
         NexDesk.Domain.Common.Actor uploader,
@@ -35,6 +41,11 @@ public sealed class AttachmentStore(IAppDbContext db, ITenantContext tenant, IFi
         if (name.Length is 0 or > Attachment.FileNameMaxLength || !Attachment.IsAllowedFileName(name))
         {
             return TicketErrors.FileTypeBlocked;
+        }
+
+        if (await entitlements.CanStore(sizeBytes, cancellationToken) is { } limit)
+        {
+            return limit;
         }
 
         var attachment = Attachment.Create(tenant.TenantId!.Value, name, contentType, sizeBytes, uploader, clock.GetUtcNow());

@@ -227,3 +227,27 @@ public static class TestAutomation
             .SweepAsync(now, CancellationToken.None);
     }
 }
+
+public static class TestBilling
+{
+    public const string ValidCard = "4242 4242 4242 4242";
+
+    public static CheckoutRequest Card(string planCode, string number = ValidCard) =>
+        new(planCode, "Olivia Owner", number, 12, DateTimeOffset.UtcNow.Year + 2, "123");
+
+    /// <summary>Moves a workspace to another plan through the simulated checkout.</summary>
+    public static async Task ChangePlanAsync(this HttpClient ownerClient, string planCode)
+    {
+        var response = await ownerClient.PostAsJsonAsync("/api/v1/billing/checkout", Card(planCode), TestJson.Options);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+    }
+
+    /// <summary>Runs something inside one workspace, the way a background job would.</summary>
+    public static async Task<T> InTenantAsync<T>(this ApiFactory factory, Guid tenantId, Func<IServiceProvider, Task<T>> work)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        using var tenant = scope.ServiceProvider
+            .GetRequiredService<NexDesk.Application.Common.ITenantScopeFactory>().Begin(tenantId);
+        return await work(scope.ServiceProvider);
+    }
+}

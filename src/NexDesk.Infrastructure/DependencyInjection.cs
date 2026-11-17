@@ -3,9 +3,11 @@ using Hangfire.PostgreSql;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using NexDesk.Application.Billing;
 using NexDesk.Application.Common;
 using NexDesk.Application.KnowledgeBase;
 using NexDesk.Infrastructure.Automation;
+using NexDesk.Infrastructure.Billing;
 using NexDesk.Infrastructure.Email;
 using NexDesk.Infrastructure.Identity;
 using NexDesk.Infrastructure.KnowledgeBase;
@@ -74,6 +76,11 @@ public static class DependencyInjection
         services.AddHangfireServer(server => server.WorkerCount = 4);
         services.AddScoped<SlaSweepJob>();
         services.AddScoped<AutomationSweepJob>();
+        services.AddScoped<SubscriptionRenewalJob>();
+        services.AddScoped<CleanupJob>();
+        services.AddScoped<IUsageMeter, UsageMeter>();
+        services.AddSingleton<IInvoiceRenderer, InvoicePdfRenderer>();
+        services.AddSingleton<IPlanRateLimits, PlanRateLimits>();
         if (configuration.GetValue("Jobs:RecurringEnabled", true))
         {
             services.AddHostedService<RecurringJobRegistrar>();

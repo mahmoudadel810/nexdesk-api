@@ -2,6 +2,7 @@ using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using NexDesk.Application.Auth;
 using NexDesk.Application.Automation;
+using NexDesk.Application.Billing;
 using NexDesk.Application.Common;
 using NexDesk.Application.Notifications;
 using NexDesk.Application.Portal;
@@ -28,6 +29,8 @@ public static class DependencyInjection
         services.AddScoped<AttachmentStore>();
         services.AddScoped<SlaEngine>();
         services.AddScoped<Notifier>();
+        services.AddScoped<IEntitlementService, EntitlementService>();
+        services.AddScoped<BillingService>();
         services.AddScoped<AutomationRunState>();
         services.AddScoped<AutomationEngine>();
         services.AddScoped<RuleDefinitionChecker>();

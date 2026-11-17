@@ -1,3 +1,4 @@
+using NexDesk.Api.RateLimiting;
 using NexDesk.Application.Auth;
 using NexDesk.Application.Common;
 
@@ -30,7 +31,7 @@ public static class AuthEndpoints
 
     public static RouteGroupBuilder MapAuthEndpoints(this RouteGroupBuilder api)
     {
-        var auth = api.MapGroup("/auth").WithTags("Auth");
+        var auth = api.MapGroup("/auth").WithTags("Auth").RequireRateLimiting(RateLimitingSetup.AuthPolicy);
 
         auth.MapPost("/register", async (
             RegisterRequest request,

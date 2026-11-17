@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.Extensions.DependencyInjection;
 using NexDesk.Application.Common;
 using NexDesk.Domain.Automation;
+using NexDesk.Domain.Billing;
 using NexDesk.Domain.Common;
 using NexDesk.Domain.Customers;
 using NexDesk.Domain.Identity;
@@ -79,6 +80,14 @@ public sealed class AppDbContext(
     public DbSet<AutomationRule> AutomationRules => Set<AutomationRule>();
 
     public DbSet<AutomationExecution> AutomationExecutions => Set<AutomationExecution>();
+
+    public DbSet<Plan> Plans => Set<Plan>();
+
+    public DbSet<Subscription> Subscriptions => Set<Subscription>();
+
+    public DbSet<Invoice> Invoices => Set<Invoice>();
+
+    public DbSet<UsageCounter> UsageCounters => Set<UsageCounter>();
 
     public void DiscardChanges() => ChangeTracker.Clear();
 

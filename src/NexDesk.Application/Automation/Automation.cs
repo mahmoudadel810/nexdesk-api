@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
+using NexDesk.Application.Billing;
 using NexDesk.Application.Common;
 using NexDesk.Domain.Automation;
 using NexDesk.Domain.Identity;
@@ -224,7 +225,7 @@ internal sealed class SaveAutomationRuleValidator : AbstractValidator<SaveAutoma
     }
 }
 
-internal sealed class SaveAutomationRuleHandler(IAppDbContext db, RuleDefinitionChecker checker)
+internal sealed class SaveAutomationRuleHandler(IAppDbContext db, RuleDefinitionChecker checker, IEntitlementService entitlements)
     : ICommandHandler<SaveAutomationRuleCommand, AutomationRuleDto>
 {
     public async Task<Result<AutomationRuleDto>> Handle(SaveAutomationRuleCommand command, CancellationToken cancellationToken)
@@ -247,6 +248,11 @@ internal sealed class SaveAutomationRuleHandler(IAppDbContext db, RuleDefinition
         }
         else
         {
+            if (await entitlements.CanAddAutomationRule(cancellationToken) is { } limit)
+            {
+                return limit;
+            }
+
             rule = AutomationRule.Create(command.Name, command.Trigger, command.Definition, command.Position, command.IsEnabled);
             db.AutomationRules.Add(rule);
         }

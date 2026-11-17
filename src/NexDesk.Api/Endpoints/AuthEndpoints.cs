@@ -24,6 +24,21 @@ public sealed record ResetPasswordRequest(string Token, string NewPassword);
 /// <summary>The access token for API calls. The refresh token travels only in an HttpOnly cookie.</summary>
 public sealed record AuthResponse(string AccessToken, DateTimeOffset ExpiresAt, SessionDto Session);
 
+public sealed record MobileLoginRequest(string Email, string Password, string? DeviceName);
+
+public sealed record MobileRefreshRequest(string? RefreshToken);
+
+/// <summary>
+/// Both tokens, for the mobile app, which keeps the refresh token in the device's secure storage. It rotates on
+/// every refresh: store the new one before using the new access token.
+/// </summary>
+public sealed record MobileAuthResponse(
+    string AccessToken,
+    DateTimeOffset ExpiresAt,
+    string RefreshToken,
+    DateTimeOffset RefreshTokenExpiresAt,
+    SessionDto Session);
+
 public static class AuthEndpoints
 {
     public const string RefreshCookie = "nexdesk_rt";
@@ -158,6 +173,48 @@ public static class AuthEndpoints
             .Produces(StatusCodes.Status204NoContent)
             .ProducesValidationProblem();
 
+        // The mobile app keeps its refresh token in secure storage, so these three take and return it in the body.
+        // They never read or write the cookie, and the cookie endpoints never take a body token: script running in
+        // the web app cannot turn the browser's cookie into a refresh token it can read.
+        var mobile = auth.MapGroup("/mobile").WithTags("Auth (mobile)");
+
+        mobile.MapPost("/login", async (
+            MobileLoginRequest request,
+            HttpContext http,
+            ICommandHandler<LoginCommand, AuthTokens> handler,
+            CancellationToken cancellationToken) =>
+            MobileSignIn(await handler.Handle(
+                new LoginCommand(request.Email, request.Password, MobileUserAgent(http, request.DeviceName)),
+                cancellationToken)))
+            .RequireRateLimiting(RateLimitingSetup.AuthPolicy)
+            .WithName("MobileLogin")
+            .WithSummary("Signs a staff user in on the mobile app and returns both tokens.")
+            .Produces<MobileAuthResponse>()
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden);
+
+        mobile.MapPost("/refresh", async (
+            MobileRefreshRequest request,
+            HttpContext http,
+            ICommandHandler<RefreshSessionCommand, AuthTokens> handler,
+            CancellationToken cancellationToken) =>
+            MobileSignIn(await handler.Handle(new RefreshSessionCommand(request.RefreshToken, UserAgent(http)), cancellationToken)))
+            .WithName("MobileRefreshSession")
+            .WithSummary("Rotates the refresh token from the body and returns the new pair. Replaying an old one ends the session.")
+            .Produces<MobileAuthResponse>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden);
+
+        mobile.MapPost("/logout", async (
+            MobileRefreshRequest request,
+            ICommandHandler<LogoutCommand, Success> handler,
+            CancellationToken cancellationToken) =>
+            (await handler.Handle(new LogoutCommand(request.RefreshToken), cancellationToken)).ToNoContent())
+            .WithName("MobileLogout")
+            .WithSummary("Revokes the refresh-token family the given token belongs to.")
+            .Produces(StatusCodes.Status204NoContent);
+
         auth.MapGet("/me", async (
             IQueryHandler<GetSessionQuery, SessionDto> handler,
             CancellationToken cancellationToken) =>
@@ -190,6 +247,28 @@ public static class AuthEndpoints
         });
         return TypedResults.Ok(new AuthResponse(tokens.AccessToken, tokens.AccessTokenExpiresAt, tokens.Session));
     }
+
+    private static IResult MobileSignIn(Result<AuthTokens> result)
+    {
+        if (!result.IsSuccess)
+        {
+            return result.Error.ToProblem();
+        }
+
+        var tokens = result.Value;
+        return TypedResults.Ok(new MobileAuthResponse(
+            tokens.AccessToken, tokens.AccessTokenExpiresAt, tokens.RefreshToken, tokens.RefreshTokenExpiresAt, tokens.Session));
+    }
+
+    /// <summary>The app's user agent plus the device name the person sees, so the sign-in can be recognised later.</summary>
+    private static string? MobileUserAgent(HttpContext http, string? deviceName) =>
+        (UserAgent(http), string.IsNullOrWhiteSpace(deviceName) ? null : deviceName.Trim()) switch
+        {
+            (null, null) => null,
+            (var agent, null) => agent,
+            (null, var device) => device,
+            (var agent, var device) => $"{agent}; {device}",
+        };
 
     private static void ClearRefreshCookie(HttpContext http) =>
         http.Response.Cookies.Delete(RefreshCookie, new CookieOptions { Path = RefreshCookiePath });

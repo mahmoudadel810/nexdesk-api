@@ -57,6 +57,10 @@ internal sealed class RefreshSessionHandler(
 
         var (issued, successor) = sessions.Issue(user, tenant, command.UserAgent, current.FamilyId);
 
+        // The successor is stored before the old token is claimed. If a concurrent refresh loses the claim and
+        // revokes the family, the revocation then always covers this successor too, so neither copy survives.
+        await db.SaveChangesAsync(cancellationToken);
+
         // Claiming the old token is atomic, so two concurrent refreshes cannot both rotate it.
         var claimed = await db.RefreshTokens
             .Where(t => t.Id == current.Id && t.RevokedAt == null)
@@ -71,7 +75,6 @@ internal sealed class RefreshSessionHandler(
             return AuthErrors.InvalidRefreshToken;
         }
 
-        await db.SaveChangesAsync(cancellationToken);
         return issued;
     }
 

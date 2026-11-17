@@ -118,16 +118,54 @@ public sealed class Notifier(
 }
 
 /// <summary>Turns ticket events into live updates, notifications and emails.</summary>
-internal sealed class TicketNotificationHandlers(IAppDbContext db, Notifier notifier, IEmailDispatcher emails, IOptions<AppOptions> appOptions)
+internal sealed class TicketNotificationHandlers(
+    IAppDbContext db,
+    Notifier notifier,
+    IEmailDispatcher emails,
+    ITokenService tokens,
+    TimeProvider clock,
+    IOptions<AppOptions> appOptions)
     : IDomainEventHandler<TicketCreated>,
+        IDomainEventHandler<TicketSolved>,
         IDomainEventHandler<TicketChanged>,
         IDomainEventHandler<TicketAssigned>,
         IDomainEventHandler<TicketMessageAdded>,
         IDomainEventHandler<TicketSlaApproaching>,
         IDomainEventHandler<TicketSlaBreached>
 {
-    public Task Handle(TicketCreated domainEvent, CancellationToken cancellationToken) =>
-        notifier.TicketChangedAsync(domainEvent.TicketId, "created", cancellationToken);
+    private static readonly TimeSpan SurveyLifetime = TimeSpan.FromDays(14);
+
+    public async Task Handle(TicketCreated domainEvent, CancellationToken cancellationToken)
+    {
+        await notifier.TicketChangedAsync(domainEvent.TicketId, "created", cancellationToken);
+
+        // Customers who wrote in themselves get a receipt; a ticket an agent logged by hand does not need one.
+        var ticket = await Load(domainEvent.TicketId, cancellationToken);
+        if (ticket is { Channel: TicketChannel.Portal or TicketChannel.Email })
+        {
+            await EmailRequester(ticket, "ticket-received", null, null, null, cancellationToken);
+        }
+    }
+
+    public async Task Handle(TicketSolved domainEvent, CancellationToken cancellationToken)
+    {
+        var ticket = await Load(domainEvent.TicketId, cancellationToken);
+        if (ticket is null)
+        {
+            return;
+        }
+
+        var secret = tokens.CreateSecret();
+        db.OneTimeTokens.Add(OneTimeToken.Issue(
+            SubjectType.Customer,
+            ticket.Id,
+            OneTimeTokenPurpose.CsatSurvey,
+            tokens.HashSecret(secret),
+            clock.GetUtcNow(),
+            SurveyLifetime));
+        await db.SaveChangesAsync(cancellationToken);
+        await EmailRequester(ticket, "ticket-solved", null, null, $"csat?token={Uri.EscapeDataString(secret)}", cancellationToken);
+    }
 
     public Task Handle(TicketChanged domainEvent, CancellationToken cancellationToken) =>
         notifier.TicketChangedAsync(domainEvent.TicketId, "updated", cancellationToken);
@@ -183,7 +221,7 @@ internal sealed class TicketNotificationHandlers(IAppDbContext db, Notifier noti
 
         if (!domainEvent.IsInternal && domainEvent.Author.Type == ActorType.Staff)
         {
-            await EmailRequester(ticket, actorName, body, cancellationToken);
+            await EmailRequester(ticket, "customer-reply", actorName, body, null, cancellationToken);
         }
     }
 
@@ -246,7 +284,19 @@ internal sealed class TicketNotificationHandlers(IAppDbContext db, Notifier noti
         _ => null,
     };
 
-    private async Task EmailRequester(Ticket ticket, string? agentName, string body, CancellationToken cancellationToken)
+    /// <param name="ticket">The ticket the email is about.</param>
+    /// <param name="template">Email template to use.</param>
+    /// <param name="agentName">Agent named in the email, when a person wrote the message.</param>
+    /// <param name="body">Message text to quote, if any.</param>
+    /// <param name="portalPath">Portal page to link to; defaults to the ticket itself.</param>
+    /// <param name="cancellationToken">Cancels the lookups.</param>
+    private async Task EmailRequester(
+        Ticket ticket,
+        string template,
+        string? agentName,
+        string? body,
+        string? portalPath,
+        CancellationToken cancellationToken)
     {
         var requester = await db.Customers.AsNoTracking()
             .Where(c => c.Id == ticket.RequesterId)
@@ -261,21 +311,21 @@ internal sealed class TicketNotificationHandlers(IAppDbContext db, Notifier noti
             return;
         }
 
-        emails.Enqueue(new EmailMessage(
-            requester.Email,
-            requester.FullName,
-            "customer-reply",
-            workspace.DefaultLanguage,
-            new Dictionary<string, string>
-            {
-                ["name"] = requester.FullName,
-                ["workspace"] = workspace.Name,
-                ["agent"] = agentName ?? workspace.Name,
-                ["number"] = ticket.Number.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                ["subject"] = ticket.Subject,
-                ["message"] = body,
-                ["link"] = $"{appOptions.Value.WebBaseUrl.TrimEnd('/')}/portal/{workspace.Slug}/tickets/{ticket.Id}",
-            }));
+        var model = new Dictionary<string, string>
+        {
+            ["name"] = requester.FullName,
+            ["workspace"] = workspace.Name,
+            ["agent"] = agentName ?? workspace.Name,
+            ["number"] = ticket.Number.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["subject"] = ticket.Subject,
+            ["link"] = $"{appOptions.Value.WebBaseUrl.TrimEnd('/')}/portal/{workspace.Slug}/{portalPath ?? $"tickets/{ticket.Id}"}",
+        };
+        if (body is not null)
+        {
+            model["message"] = body;
+        }
+
+        emails.Enqueue(new EmailMessage(requester.Email, requester.FullName, template, workspace.DefaultLanguage, model));
     }
 }
 

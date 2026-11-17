@@ -67,7 +67,8 @@ public sealed record TicketDetailDto(
     IReadOnlyDictionary<string, string> CustomFields,
     TicketLink? MergedInto,
     uint Version,
-    TicketSlaDto Sla);
+    TicketSlaDto Sla,
+    Portal.CsatDto? Csat);
 
 /// <summary>A pointer to another ticket.</summary>
 public sealed record TicketLink(Guid Id, int Number, string Subject);
@@ -233,6 +234,10 @@ internal static class TicketQueries
                     .FirstOrDefaultAsync(cancellationToken)
                 : null,
             ticket.Version,
-            item.Sla);
+            item.Sla,
+            await db.CsatResponses.AsNoTracking()
+                .Where(c => c.TicketId == ticketId)
+                .Select(c => new Portal.CsatDto(c.Rating, c.Comment))
+                .FirstOrDefaultAsync(cancellationToken));
     }
 }

@@ -39,7 +39,9 @@ internal sealed class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser,
 /// <summary>The caller's address, after the trusted proxy's forwarded headers were applied.</summary>
 internal sealed class HttpRequestOrigin(IHttpContextAccessor accessor) : IRequestOrigin
 {
-    public string? IpAddress => accessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
+    public string? IpAddress => accessor.HttpContext?.Connection.RemoteIpAddress is { } address
+        ? (address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address).ToString()
+        : null;
 }
 
 public static class AuthenticationSetup

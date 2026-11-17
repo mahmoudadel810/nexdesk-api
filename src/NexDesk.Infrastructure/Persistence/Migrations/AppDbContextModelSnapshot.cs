@@ -405,6 +405,159 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("NexDesk.Domain.KnowledgeBase.KbArticle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("BodyMarkdown")
+                        .IsRequired()
+                        .HasMaxLength(100000)
+                        .HasColumnType("character varying(100000)")
+                        .HasColumnName("body_markdown");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("category_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<int>("HelpfulCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("helpful_count");
+
+                    b.Property<int>("NotHelpfulCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("not_helpful_count");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at");
+
+                    b.Property<NpgsqlTsVector>("SearchVector")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("tsvector")
+                        .HasColumnName("search_vector")
+                        .HasComputedColumnSql("setweight(to_tsvector('simple', title), 'A') || setweight(to_tsvector('simple', body_markdown), 'B')", true);
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)")
+                        .HasColumnName("slug");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<int>("ViewCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("view_count");
+
+                    b.HasKey("Id")
+                        .HasName("pk_kb_articles");
+
+                    b.HasIndex("CategoryId")
+                        .HasDatabaseName("ix_kb_articles_category_id");
+
+                    b.HasIndex("SearchVector")
+                        .HasDatabaseName("ix_kb_articles_search_vector");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("SearchVector"), "gin");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_kb_articles_tenant_id");
+
+                    b.HasIndex("TenantId", "Slug")
+                        .IsUnique()
+                        .HasDatabaseName("ix_kb_articles_tenant_id_slug");
+
+                    b.HasIndex("TenantId", "CategoryId", "Status")
+                        .HasDatabaseName("ix_kb_articles_tenant_id_category_id_status");
+
+                    b.ToTable("kb_articles", (string)null);
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.KnowledgeBase.KbCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_kb_categories");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_kb_categories_tenant_id");
+
+                    b.HasIndex("TenantId", "Position")
+                        .HasDatabaseName("ix_kb_categories_tenant_id_position");
+
+                    b.ToTable("kb_categories", (string)null);
+                });
+
             modelBuilder.Entity("NexDesk.Domain.Notifications.Notification", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1480,6 +1633,33 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_users_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.KnowledgeBase.KbArticle", b =>
+                {
+                    b.HasOne("NexDesk.Domain.KnowledgeBase.KbCategory", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_kb_articles_kb_categories_category_id");
+
+                    b.HasOne("NexDesk.Domain.Tenants.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_kb_articles_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.KnowledgeBase.KbCategory", b =>
+                {
+                    b.HasOne("NexDesk.Domain.Tenants.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_kb_categories_tenants_tenant_id");
                 });
 
             modelBuilder.Entity("NexDesk.Domain.Notifications.Notification", b =>

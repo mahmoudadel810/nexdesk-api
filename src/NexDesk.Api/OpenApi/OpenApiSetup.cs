@@ -101,6 +101,14 @@ public static class OpenApiSetup
         [typeof(InboundEmailRequest)] = new InboundEmailRequest(
             "casey@customer.example", "Casey Customer", "Re: Cannot download my invoice [#42]", "Here is the screenshot you asked for."),
         [typeof(AddHolidayRequest)] = new AddHolidayRequest(new DateOnly(2027, 1, 1), "New Year's Day"),
+        [typeof(SaveKbCategoryRequest)] = new SaveKbCategoryRequest("Billing", "Invoices, payments and refunds.", 1),
+        [typeof(SaveKbArticleRequest)] = new SaveKbArticleRequest(
+            Guid.Parse("0196b6c4-5a6b-7c8d-9e0f-1a2b3c4d5e6f"),
+            "How to download an invoice",
+            "## Steps\n\n1. Open **Billing**.\n2. Choose the invoice and select *Download PDF*.",
+            true),
+        [typeof(PreviewMarkdownRequest)] = new PreviewMarkdownRequest("## Steps\n\n1. Open **Billing**."),
+        [typeof(KbFeedbackRequest)] = new KbFeedbackRequest(true),
     };
 
     public static IServiceCollection AddNexDeskOpenApi(this IServiceCollection services) =>

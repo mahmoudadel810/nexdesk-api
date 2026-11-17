@@ -57,6 +57,7 @@ public static class PortalEndpoints
         MapAuth(portal.MapGroup("/auth"));
         MapTickets(portal);
         MapSurvey(portal.MapGroup("/csat"));
+        portal.MapGroup("/kb").WithTags("Help centre articles").MapPortalKnowledgeBase();
 
         api.MapPost("/inbound/email/{tenantSlug}", ReceiveEmail)
             .WithTags("Inbound email")

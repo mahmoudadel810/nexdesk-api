@@ -4,6 +4,7 @@ using NexDesk.Domain.Automation;
 using NexDesk.Domain.Billing;
 using NexDesk.Domain.Common;
 using NexDesk.Domain.Customers;
+using NexDesk.Domain.Developer;
 using NexDesk.Domain.Identity;
 using NexDesk.Domain.KnowledgeBase;
 using NexDesk.Domain.Notifications;
@@ -77,6 +78,8 @@ public interface IAppDbContext
     DbSet<UsageCounter> UsageCounters { get; }
 
     DbSet<AuditLog> AuditLogs { get; }
+
+    DbSet<ApiKey> ApiKeys { get; }
 
     /// <summary>Forgets every tracked change, so an operation can be retried from fresh data.</summary>
     void DiscardChanges();

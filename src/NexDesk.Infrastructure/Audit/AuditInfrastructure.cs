@@ -10,6 +10,7 @@ using NexDesk.Domain.Automation;
 using NexDesk.Domain.Billing;
 using NexDesk.Domain.Common;
 using NexDesk.Domain.Customers;
+using NexDesk.Domain.Developer;
 using NexDesk.Domain.Identity;
 using NexDesk.Domain.KnowledgeBase;
 using NexDesk.Domain.Sla;
@@ -72,6 +73,7 @@ internal static class AuditCatalog
         [typeof(AutomationRule)] = new("automation-rule", "RunCount", "LastRunAt"),
         [typeof(Subscription)] = new("subscription"),
         [typeof(Invoice)] = new("invoice"),
+        [typeof(ApiKey)] = new("api-key", "Prefix", "LastUsedAt"),
 
         // Deadlines, warnings and activity times are kept up to date by the system; the ticket's own
         // timeline already explains them.
@@ -81,9 +83,6 @@ internal static class AuditCatalog
             "ResolutionBreachedAt", "FirstResponseWarnedAt", "ResolutionWarnedAt", "ResolutionRemainingMinutes",
             "SlaFirstResponseMinutes", "SlaResolutionMinutes", "IsEscalated"),
     };
-
-    /// <summary>Records added after the catalog was written, such as API keys and webhooks, register here.</summary>
-    public static void Register(Type type, AuditedType audited) => Types[type] = audited;
 
     public static AuditedType? Find(Type type) => Types.GetValueOrDefault(type);
 

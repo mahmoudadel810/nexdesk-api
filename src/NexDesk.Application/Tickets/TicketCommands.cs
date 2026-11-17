@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using NexDesk.Application.Common;
+using NexDesk.Domain.Common;
 using NexDesk.Domain.Customers;
 using NexDesk.Domain.Identity;
 using NexDesk.Domain.Tickets;
@@ -75,7 +76,9 @@ internal sealed class CreateTicketHandler(
             command.Tags,
             command.AttachmentIds,
             fields.Value.Values);
-        var created = await writer.CreateAsync(draft, currentUser.AsActor(), TicketChannel.Agent, cancellationToken);
+        var actor = currentUser.AsActor();
+        var channel = actor.Type == ActorType.ApiKey ? TicketChannel.Api : TicketChannel.Agent;
+        var created = await writer.CreateAsync(draft, actor, channel, cancellationToken);
         if (!created.IsSuccess)
         {
             return created.Error;

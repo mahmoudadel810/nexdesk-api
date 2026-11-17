@@ -290,7 +290,7 @@ All list endpoints accept `page`, `pageSize`, `sort` and feature-specific filter
 | Reports | `GET /reports/overview`, `/volume`, `/backlog`, `/response-times`, `/sla-compliance`, `/csat`, `/agents`, each with `from`, `to`; `GET /reports/{name}/export.csv` |
 | Audit | `GET /audit-logs` |
 | Developer | `GET/POST /api-keys`, `DELETE /api-keys/{id}`; `GET/POST /webhooks`, `PUT/DELETE /webhooks/{id}`, `GET /webhooks/{id}/deliveries`, `POST /webhooks/deliveries/{id}/resend` |
-| Public API | `/public/v1/tickets...` authenticated by `X-Api-Key`, scoped |
+| Public API | `GET/POST /public/tickets`, `GET/PATCH /public/tickets/{id}`, `POST /public/tickets/{id}/messages`, authenticated by `X-Api-Key` with the `tickets:read` / `tickets:write` scopes; tickets opened here use the API channel and the key is the actor |
 | Settings | `GET/PUT /settings`, `POST /settings/logo` |
 | Platform admin | `GET /admin/tenants`, `GET /admin/tenants/{id}`, `POST /admin/tenants/{id}/suspend`, `/reactivate`, `GET /admin/metrics/mrr`, `GET /admin/metrics/signups` |
 

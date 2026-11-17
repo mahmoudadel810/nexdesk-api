@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -12,6 +13,18 @@ internal sealed class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser,
     public Guid? UserId => SubjectOf(JwtOptions.StaffAudience);
 
     public Guid? CustomerId => SubjectOf(JwtOptions.PortalAudience);
+
+    public Guid? ApiKeyId
+    {
+        get
+        {
+            var user = accessor.HttpContext?.User;
+            return user?.FindFirst("aud")?.Value == ApiKeyAuthenticationHandler.Audience
+                && Guid.TryParse(user.FindFirst(ApiKeyAuthenticationHandler.ApiKeyIdClaim)?.Value, out var id)
+                ? id
+                : null;
+        }
+    }
 
     private Guid? SubjectOf(string audience)
     {
@@ -42,7 +55,10 @@ public static class AuthenticationSetup
         services.AddScoped<ICurrentCustomer>(provider => provider.GetRequiredService<CurrentUser>());
         services.AddScoped<IRequestOrigin, HttpRequestOrigin>();
 
-        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer().AddJwtBearer(PortalScheme);
+        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer()
+            .AddJwtBearer(PortalScheme)
+            .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeyAuthenticationHandler.SchemeName, null);
         services.AddOptions<JwtBearerOptions>(PortalScheme)
             .Configure<IOptions<JwtOptions>>((bearer, jwt) =>
             {
@@ -91,6 +107,15 @@ public static class AuthenticationSetup
         services.AddAuthorization();
         return services;
     }
+
+    /// <summary>Requires an API key that was granted <paramref name="scope"/>.</summary>
+    public static TBuilder RequireApiScope<TBuilder>(this TBuilder builder, string scope)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.RequireAuthorization(policy => policy
+            .AddAuthenticationSchemes(ApiKeyAuthenticationHandler.SchemeName)
+            .RequireAuthenticatedUser()
+            .RequireClaim("aud", ApiKeyAuthenticationHandler.Audience)
+            .RequireClaim(ApiKeyAuthenticationHandler.ScopeClaim, scope));
 
     /// <summary>Requires a signed-in staff user whose role grants <paramref name="permission"/>.</summary>
     public static TBuilder RequirePermission<TBuilder>(this TBuilder builder, string permission)

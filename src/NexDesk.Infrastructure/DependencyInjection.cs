@@ -6,11 +6,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NexDesk.Application.Billing;
 using NexDesk.Application.Common;
+using NexDesk.Application.Developer;
 using NexDesk.Application.KnowledgeBase;
 using NexDesk.Application.Reports;
 using NexDesk.Infrastructure.Audit;
 using NexDesk.Infrastructure.Automation;
 using NexDesk.Infrastructure.Billing;
+using NexDesk.Infrastructure.Developer;
 using NexDesk.Infrastructure.Email;
 using NexDesk.Infrastructure.Identity;
 using NexDesk.Infrastructure.KnowledgeBase;
@@ -59,6 +61,7 @@ public static class DependencyInjection
         services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
         services.TryAddScoped<IRequestOrigin, NoRequestOrigin>();
         services.AddScoped<AuditRecorder>();
+        services.AddScoped<IApiKeyDirectory, ApiKeyDirectory>();
 
         services.AddMemoryCache();
         services.AddScoped<IIdentityDirectory, IdentityDirectory>();

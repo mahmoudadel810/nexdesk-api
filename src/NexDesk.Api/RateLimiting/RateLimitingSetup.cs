@@ -3,6 +3,7 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
+using NexDesk.Api.Auth;
 using NexDesk.Api.Endpoints;
 using NexDesk.Api.Realtime;
 using NexDesk.Application.Billing;
@@ -61,7 +62,7 @@ public static class RateLimitingSetup
     public static IApplicationBuilder UseNexDeskRateLimiting(this IApplicationBuilder app) =>
         app.Use(async (http, next) =>
         {
-            if (Options(http).Enabled && StaffTenantId(http) is { } tenantId)
+            if (Options(http).Enabled && PlanTenantId(http) is { } tenantId)
             {
                 http.Items[PlanLimitItem] = await http.RequestServices
                     .GetRequiredService<IPlanRateLimits>()
@@ -80,8 +81,13 @@ public static class RateLimitingSetup
             return RateLimitPartition.GetNoLimiter("unlimited");
         }
 
-        // Each team member gets the allowance of the workspace's plan. The limit is part of the key, so
-        // a plan change takes effect at once instead of when the old window happens to end.
+        // Each team member and each API key gets the allowance of the workspace's plan. The limit is part
+        // of the key, so a plan change takes effect at once instead of when the old window happens to end.
+        if (ApiKeyId(http) is { } apiKeyId && http.Items[PlanLimitItem] is int keyLimit)
+        {
+            return FixedWindow($"api-key:{apiKeyId}:{keyLimit}", keyLimit);
+        }
+
         var person = http.User.Identity?.IsAuthenticated == true ? http.User.FindFirst(NexDeskClaims.Subject)?.Value : null;
         if (person is not null && StaffTenantId(http) is not null && http.Items[PlanLimitItem] is int planLimit)
         {
@@ -114,6 +120,18 @@ public static class RateLimitingSetup
         && Guid.TryParse(http.User.FindFirst(NexDeskClaims.TenantId)?.Value, out var tenantId)
             ? tenantId
             : null;
+
+    private static string? ApiKeyId(HttpContext http) =>
+        http.User.FindFirst("aud")?.Value == ApiKeyAuthenticationHandler.Audience
+            ? http.User.FindFirst(ApiKeyAuthenticationHandler.ApiKeyIdClaim)?.Value
+            : null;
+
+    /// <summary>The workspace whose plan sets the allowance: that of a team member or of an API key.</summary>
+    private static Guid? PlanTenantId(HttpContext http) =>
+        StaffTenantId(http)
+        ?? (ApiKeyId(http) is not null && Guid.TryParse(http.User.FindFirst(NexDeskClaims.TenantId)?.Value, out var tenantId)
+            ? tenantId
+            : null);
 
     private static string Address(HttpContext http) => http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 

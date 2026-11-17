@@ -2,7 +2,9 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
+using NexDesk.Api.Auth;
 using NexDesk.Api.Endpoints;
+using NexDesk.Api.Middleware;
 using NexDesk.Application.Notifications;
 using NexDesk.Application.Sla;
 using NexDesk.Application.Tickets;
@@ -16,6 +18,7 @@ namespace NexDesk.Api.OpenApi;
 public static class OpenApiSetup
 {
     private const string BearerScheme = "Bearer";
+    private const string ApiKeyScheme = "ApiKey";
 
     /// <summary>One realistic example per request body, shown in the API reference.</summary>
     private static readonly Dictionary<Type, object> Examples = new()
@@ -127,6 +130,18 @@ public static class OpenApiSetup
                         Subject: "We have not heard back from you",
                         Body: "Hi {{customer.name}}, we marked request #{{ticket.number}} as solved. Reply to reopen it."),
                 ])),
+        [typeof(IssueApiKeyRequest)] = new IssueApiKeyRequest("Order system sync", ["tickets:read", "tickets:write"], 365),
+        [typeof(PublicCreateTicketRequest)] = new PublicCreateTicketRequest(
+            "Order 1001 arrived damaged",
+            "The box was crushed and the mug inside is broken.",
+            "casey@customer.example",
+            "Casey Customer",
+            TicketPriority.High,
+            TicketType.Problem,
+            ["orders"]),
+        [typeof(PublicUpdateTicketRequest)] = new PublicUpdateTicketRequest(Status: TicketStatus.Solved),
+        [typeof(PublicAddMessageRequest)] = new PublicAddMessageRequest(
+            "A replacement is on its way: tracking number 1Z999.", SetStatus: TicketStatus.Pending),
     };
 
     public static IServiceCollection AddNexDeskOpenApi(this IServiceCollection services) =>
@@ -150,6 +165,13 @@ public static class OpenApiSetup
                     BearerFormat = "JWT",
                     Description = "Access token returned by the login, refresh and verify-email endpoints.",
                 };
+                document.Components.SecuritySchemes[ApiKeyScheme] = new OpenApiSecurityScheme
+                {
+                    Type = SecuritySchemeType.ApiKey,
+                    In = ParameterLocation.Header,
+                    Name = ApiKeyAuthenticationHandler.HeaderName,
+                    Description = "A workspace API key for the public API, issued under Developers → API keys.",
+                };
                 return Task.CompletedTask;
             });
 
@@ -160,10 +182,12 @@ public static class OpenApiSetup
                     .Any();
                 if (requiresAuth)
                 {
+                    var isPublicApi = context.Description.RelativePath?.StartsWith(
+                        TenantResolutionMiddleware.PublicApiPath.TrimStart('/'), StringComparison.Ordinal) == true;
                     operation.Security ??= [];
                     operation.Security.Add(new OpenApiSecurityRequirement
                     {
-                        [new OpenApiSecuritySchemeReference(BearerScheme, context.Document)] = [],
+                        [new OpenApiSecuritySchemeReference(isPublicApi ? ApiKeyScheme : BearerScheme, context.Document)] = [],
                     });
                 }
 

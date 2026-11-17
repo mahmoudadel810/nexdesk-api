@@ -10,6 +10,8 @@ namespace NexDesk.Api.Middleware;
 /// <summary>Confines the request to the tenant named in the caller's token.</summary>
 public sealed class TenantResolutionMiddleware(RequestDelegate next)
 {
+    public const string PublicApiPath = "/api/v1/public";
+
     public async Task InvokeAsync(HttpContext context, ITenantScopeFactory tenantScopes)
     {
         // Portal requests carry a customer token, which the default (staff) scheme does not accept.
@@ -17,6 +19,13 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
             && await context.AuthenticateAsync(AuthenticationSetup.PortalScheme) is { Succeeded: true } portal)
         {
             context.User = portal.Principal;
+        }
+
+        // Public API requests carry an API key; the key decides the workspace.
+        if (context.Request.Path.StartsWithSegments(PublicApiPath)
+            && await context.AuthenticateAsync(ApiKeyAuthenticationHandler.SchemeName) is { Succeeded: true } integration)
+        {
+            context.User = integration.Principal;
         }
 
         if (context.Items.ContainsKey(AuthenticationSetup.TenantSuspendedItem))

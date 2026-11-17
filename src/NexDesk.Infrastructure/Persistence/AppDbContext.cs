@@ -8,6 +8,7 @@ using NexDesk.Domain.Automation;
 using NexDesk.Domain.Billing;
 using NexDesk.Domain.Common;
 using NexDesk.Domain.Customers;
+using NexDesk.Domain.Developer;
 using NexDesk.Domain.Identity;
 using NexDesk.Domain.KnowledgeBase;
 using NexDesk.Domain.Notifications;
@@ -92,6 +93,8 @@ public sealed class AppDbContext(
     public DbSet<UsageCounter> UsageCounters => Set<UsageCounter>();
 
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
+    public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
 
     public void DiscardChanges() => ChangeTracker.Clear();
 

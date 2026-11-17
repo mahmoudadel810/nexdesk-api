@@ -14,7 +14,7 @@ using NexDesk.Infrastructure.Identity;
 
 namespace NexDesk.Api.Endpoints;
 
-public sealed record PortalRegisterRequest(string FullName, string Email, string Password);
+public sealed record PortalRegisterRequest(string FullName, string Email);
 
 public sealed record PortalTicketRequest(string Subject, string Description, IReadOnlyCollection<Guid>? AttachmentIds = null);
 
@@ -77,23 +77,12 @@ public static class PortalEndpoints
             PortalRegisterRequest request,
             ICommandHandler<PortalRegisterCommand, Success> handler,
             CancellationToken ct) =>
-            (await handler.Handle(new PortalRegisterCommand(request.FullName, request.Email, request.Password), ct))
+            (await handler.Handle(new PortalRegisterCommand(request.FullName, request.Email), ct))
             .ToHttp(_ => TypedResults.Accepted((string?)null)))
             .WithName("PortalRegister")
-            .WithSummary("Signs a customer up for the help centre and emails a confirmation link. Always answers 202.")
+            .WithSummary("Emails a link for choosing a password to the given address. Always answers 202; "
+                + "the password is only ever set by whoever opens that email.")
             .Produces(StatusCodes.Status202Accepted)
-            .ProducesValidationProblem();
-
-        auth.MapPost("/verify-email", async (
-            string slug,
-            VerifyEmailRequest request,
-            HttpContext http,
-            ICommandHandler<PortalVerifyEmailCommand, PortalTokens> handler,
-            CancellationToken ct) =>
-            SignIn(http, slug, await handler.Handle(new PortalVerifyEmailCommand(request.Token, AuthEndpoints.UserAgent(http)), ct)))
-            .WithName("PortalVerifyEmail")
-            .WithSummary("Confirms a customer's email address and signs them in.")
-            .Produces<PortalAuthResponse>()
             .ProducesValidationProblem();
 
         auth.MapPost("/login", async (
@@ -161,7 +150,7 @@ public static class PortalEndpoints
             CancellationToken ct) =>
             (await handler.Handle(new PortalResetPasswordCommand(request.Token, request.NewPassword), ct)).ToNoContent())
             .WithName("PortalResetPassword")
-            .WithSummary("Sets a customer's password with the emailed token.")
+            .WithSummary("Sets a customer's password with the emailed token. This is also how a new account is activated.")
             .Produces(StatusCodes.Status204NoContent)
             .ProducesValidationProblem();
 

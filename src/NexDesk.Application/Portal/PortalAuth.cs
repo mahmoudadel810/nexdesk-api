@@ -62,32 +62,38 @@ public sealed class PortalSessions(
             refreshToken);
     }
 
-    /// <summary>Creates a one-time token for the customer and returns the email that delivers it. The caller saves and sends.</summary>
-    public async Task<EmailMessage> PrepareAsync(
+    /// <summary>
+    /// Creates a one-time token and returns the email that lets the customer choose a password. The caller
+    /// saves and sends. A password is only ever set through this link, which proves control of the mailbox.
+    /// </summary>
+    public async Task<EmailMessage> PrepareSetPasswordAsync(
         Customer customer,
-        OneTimeTokenPurpose purpose,
+        bool isSignUp,
         CancellationToken cancellationToken)
     {
         var workspace = await WorkspaceAsync(cancellationToken);
-        var verification = purpose == OneTimeTokenPurpose.EmailVerification;
-        var lifetime = verification
+        var lifetime = isSignUp
             ? TimeSpan.FromHours(authOptions.Value.EmailVerificationHours)
             : TimeSpan.FromMinutes(authOptions.Value.PasswordResetMinutes);
         var secret = tokens.CreateSecret();
         db.OneTimeTokens.Add(OneTimeToken.Issue(
-            SubjectType.Customer, customer.Id, purpose, tokens.HashSecret(secret), clock.GetUtcNow(), lifetime));
+            SubjectType.Customer,
+            customer.Id,
+            OneTimeTokenPurpose.PasswordReset,
+            tokens.HashSecret(secret),
+            clock.GetUtcNow(),
+            lifetime));
 
-        var page = verification ? "verify-email" : "reset-password";
         return new EmailMessage(
             customer.Email,
             customer.FullName,
-            verification ? "portal-verify-email" : "portal-reset-password",
+            isSignUp ? "portal-welcome" : "portal-reset-password",
             workspace.DefaultLanguage,
             new Dictionary<string, string>
             {
                 ["name"] = customer.FullName,
                 ["workspace"] = workspace.Name,
-                ["link"] = $"{PortalUrl(workspace.Slug)}/{page}?token={Uri.EscapeDataString(secret)}",
+                ["link"] = $"{PortalUrl(workspace.Slug)}/reset-password?token={Uri.EscapeDataString(secret)}",
                 ["hours"] = authOptions.Value.EmailVerificationHours.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["minutes"] = authOptions.Value.PasswordResetMinutes.ToString(System.Globalization.CultureInfo.InvariantCulture),
             });
@@ -100,15 +106,16 @@ public sealed class PortalSessions(
     public Task<Tenant> WorkspaceAsync(CancellationToken cancellationToken) =>
         db.Tenants.AsNoTracking().FirstAsync(t => t.Id == tenantContext.TenantId, cancellationToken);
 
-    /// <summary>Finds an unused, unexpired token of the given purpose and the customer it belongs to.</summary>
-    public async Task<(OneTimeToken Token, Customer Customer)?> FindTokenAsync(
+    /// <summary>Finds an unused, unexpired set-password token and the customer it belongs to.</summary>
+    public async Task<(OneTimeToken Token, Customer Customer)?> FindSetPasswordTokenAsync(
         string secret,
-        OneTimeTokenPurpose purpose,
         CancellationToken cancellationToken)
     {
         var hash = tokens.HashSecret(secret);
         var token = await db.OneTimeTokens.FirstOrDefaultAsync(
-            t => t.TokenHash == hash && t.Purpose == purpose && t.SubjectType == SubjectType.Customer,
+            t => t.TokenHash == hash
+                && t.Purpose == OneTimeTokenPurpose.PasswordReset
+                && t.SubjectType == SubjectType.Customer,
             cancellationToken);
         if (token is null || !token.IsUsable(clock.GetUtcNow()))
         {
@@ -135,7 +142,7 @@ internal sealed class GetPortalInfoHandler(IAppDbContext db) : IQueryHandler<Get
     }
 }
 
-public sealed record PortalRegisterCommand(string FullName, string Email, string Password) : ICommand<Success>;
+public sealed record PortalRegisterCommand(string FullName, string Email) : ICommand<Success>;
 
 internal sealed class PortalRegisterValidator : AbstractValidator<PortalRegisterCommand>
 {
@@ -143,66 +150,34 @@ internal sealed class PortalRegisterValidator : AbstractValidator<PortalRegister
     {
         RuleFor(c => c.FullName).NotEmpty().MaximumLength(Customer.FullNameMaxLength);
         RuleFor(c => c.Email).ValidEmail();
-        RuleFor(c => c.Password).StrongPassword();
     }
 }
 
-internal sealed class PortalRegisterHandler(IAppDbContext db, IPasswordHasher passwordHasher, PortalSessions sessions)
+/// <summary>
+/// Sign-up never takes a password. Whoever submits the form only causes an email to the address; the
+/// password is chosen by the person who opens that email. This way a stranger cannot attach credentials
+/// to someone else's address, whether or not that address already has tickets.
+/// </summary>
+internal sealed class PortalRegisterHandler(IAppDbContext db, PortalSessions sessions)
     : ICommandHandler<PortalRegisterCommand, Success>
 {
     public async Task<Result<Success>> Handle(PortalRegisterCommand command, CancellationToken cancellationToken)
     {
         var email = User.NormalizeEmail(command.Email);
         var customer = await db.Customers.FirstOrDefaultAsync(c => c.Email == email, cancellationToken);
-        if (customer is { HasPortalAccount: true, IsEmailVerified: true })
-        {
-            // Answering "already registered" would reveal who is a customer; a reset link tells only the owner.
-            var reset = await sessions.PrepareAsync(customer, OneTimeTokenPurpose.PasswordReset, cancellationToken);
-            await db.SaveChangesAsync(cancellationToken);
-            sessions.Send(reset);
-            return default(Success);
-        }
-
+        var isNew = customer is null;
         if (customer is null)
         {
             customer = Customer.Create(email, command.FullName);
             db.Customers.Add(customer);
         }
-        else
-        {
-            // Known from earlier tickets by email or phone: signing up claims that history once verified.
-            customer.Rename(command.FullName);
-        }
 
-        customer.SetPassword(passwordHasher.Hash(command.Password));
-        var verification = await sessions.PrepareAsync(customer, OneTimeTokenPurpose.EmailVerification, cancellationToken);
+        // An existing record keeps its name: the form was not necessarily filled in by its owner.
+        var message = await sessions.PrepareSetPasswordAsync(
+            customer, isSignUp: isNew || !customer.HasPortalAccount, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
-        sessions.Send(verification);
+        sessions.Send(message);
         return default(Success);
-    }
-}
-
-public sealed record PortalVerifyEmailCommand(string Token, string? UserAgent) : ICommand<PortalTokens>;
-
-internal sealed class PortalVerifyEmailHandler(IAppDbContext db, PortalSessions sessions, TimeProvider clock)
-    : ICommandHandler<PortalVerifyEmailCommand, PortalTokens>
-{
-    public async Task<Result<PortalTokens>> Handle(PortalVerifyEmailCommand command, CancellationToken cancellationToken)
-    {
-        var found = await sessions.FindTokenAsync(
-            command.Token ?? string.Empty, OneTimeTokenPurpose.EmailVerification, cancellationToken);
-        if (found is not { } match)
-        {
-            return AuthErrors.InvalidToken;
-        }
-
-        var now = clock.GetUtcNow();
-        match.Token.Consume(now);
-        match.Customer.MarkEmailVerified(now);
-        match.Customer.RecordSuccessfulLogin(now);
-        var (issued, _) = sessions.Issue(match.Customer, command.UserAgent);
-        await db.SaveChangesAsync(cancellationToken);
-        return issued;
     }
 }
 
@@ -244,11 +219,6 @@ internal sealed class PortalLoginHandler(
             customer.RecordFailedLogin(now);
             await db.SaveChangesAsync(cancellationToken);
             return customer.IsLockedOut(now) ? AuthErrors.AccountLocked : AuthErrors.InvalidCredentials;
-        }
-
-        if (!customer.IsEmailVerified)
-        {
-            return AuthErrors.EmailNotVerified;
         }
 
         customer.RecordSuccessfulLogin(now);
@@ -333,7 +303,7 @@ internal sealed class PortalForgotPasswordHandler(IAppDbContext db, PortalSessio
         if (customer is not null)
         {
             // Also works for customers who only ever emailed in: the link lets them choose a first password.
-            var message = await sessions.PrepareAsync(customer, OneTimeTokenPurpose.PasswordReset, cancellationToken);
+            var message = await sessions.PrepareSetPasswordAsync(customer, isSignUp: false, cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
             sessions.Send(message);
         }
@@ -362,7 +332,7 @@ internal sealed class PortalResetPasswordHandler(
 {
     public async Task<Result<Success>> Handle(PortalResetPasswordCommand command, CancellationToken cancellationToken)
     {
-        var found = await sessions.FindTokenAsync(command.Token, OneTimeTokenPurpose.PasswordReset, cancellationToken);
+        var found = await sessions.FindSetPasswordTokenAsync(command.Token, cancellationToken);
         if (found is not { } match)
         {
             return AuthErrors.InvalidToken;

@@ -92,7 +92,7 @@ public static class OpenApiSetup
         [
             new NotificationPreferenceDto(NotificationType.TicketNote, InApp: true, Email: false),
         ]),
-        [typeof(PortalRegisterRequest)] = new PortalRegisterRequest("Casey Customer", "casey@customer.example", "Correct-horse-7"),
+        [typeof(PortalRegisterRequest)] = new PortalRegisterRequest("Casey Customer", "casey@customer.example"),
         [typeof(PortalTicketRequest)] = new PortalTicketRequest(
             "Cannot download my invoice", "The download button on the billing page shows an error since this morning."),
         [typeof(PortalReplyRequest)] = new PortalReplyRequest("It works again, thank you!"),

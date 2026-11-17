@@ -26,15 +26,20 @@ public static class PortalTestHelpers
     {
         var client = factory.CreateBareClient();
         email ??= TestWorkspaces.UniqueEmail("customer");
-        (await client.PostAsJsonAsync(
-            workspace.PortalPath("/auth/register"),
-            new PortalRegisterRequest(name, email, TestWorkspaces.DefaultPassword))).StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        (await client.PostAsJsonAsync(workspace.PortalPath("/auth/register"), new PortalRegisterRequest(name, email)))
+            .StatusCode.ShouldBe(HttpStatusCode.Accepted);
 
-        var token = factory.Emails.Last(email, "portal-verify-email").Token;
-        var verified = await client.PostAsJsonAsync(workspace.PortalPath("/auth/verify-email"), new VerifyEmailRequest(token));
-        var auth = await verified.ReadAsync<PortalAuthResponse>();
+        // The emailed link is the only way to choose a password, so it doubles as proof of the address.
+        var token = factory.Emails.Last(email, "portal-welcome").Token;
+        (await client.PostAsJsonAsync(
+            workspace.PortalPath("/auth/reset-password"),
+            new ResetPasswordRequest(token, TestWorkspaces.DefaultPassword))).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        var login = await client.PostAsJsonAsync(
+            workspace.PortalPath("/auth/login"),
+            new LoginRequest(email, TestWorkspaces.DefaultPassword));
+        var auth = await login.ReadAsync<PortalAuthResponse>();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
-        return new PortalCustomer(client, auth.Customer.Id, email, auth.AccessToken, ReadPortalCookie(verified)!);
+        return new PortalCustomer(client, auth.Customer.Id, email, auth.AccessToken, ReadPortalCookie(login)!);
     }
 
     public static string? ReadPortalCookie(HttpResponseMessage response)
@@ -92,28 +97,33 @@ public sealed class PortalTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task A_customer_signs_up_confirms_their_email_and_signs_in()
+    public async Task A_customer_signs_up_by_choosing_a_password_from_the_emailed_link()
     {
         var workspace = await factory.CreateWorkspaceAsync("Portal Co");
         var client = factory.CreateBareClient();
         var email = TestWorkspaces.UniqueEmail("casey");
 
-        (await client.PostAsJsonAsync(
-            workspace.PortalPath("/auth/register"),
-            new PortalRegisterRequest("Casey Customer", email, TestWorkspaces.DefaultPassword))).StatusCode.ShouldBe(HttpStatusCode.Accepted);
-        var mail = factory.Emails.Last(email, "portal-verify-email");
-        mail.Rendered.Subject.ShouldBe("Confirm your email for Portal Co support");
-        mail.Rendered.Html.ShouldContain($"/portal/{workspace.Slug}/verify-email?token=");
+        (await client.PostAsJsonAsync(workspace.PortalPath("/auth/register"), new PortalRegisterRequest("Casey Customer", email)))
+            .StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        var mail = factory.Emails.Last(email, "portal-welcome");
+        mail.Rendered.Subject.ShouldBe("Finish setting up your Portal Co support account");
+        mail.Rendered.Html.ShouldContain($"/portal/{workspace.Slug}/reset-password?token=");
 
+        // Until the link is used there is no password, so nobody can sign in.
         var early = await client.PostAsJsonAsync(
             workspace.PortalPath("/auth/login"),
             new LoginRequest(email, TestWorkspaces.DefaultPassword));
-        (await early.ProblemCodeAsync()).ShouldBe("email-not-verified");
+        (await early.ProblemCodeAsync()).ShouldBe("invalid-credentials");
 
-        var verified = await client.PostAsJsonAsync(workspace.PortalPath("/auth/verify-email"), new VerifyEmailRequest(mail.Token));
-        var auth = await verified.ReadAsync<PortalAuthResponse>();
-        auth.Customer.Email.ShouldBe(email);
-        verified.Headers.GetValues("Set-Cookie").Single().ShouldContain($"path=/api/v1/portal/{workspace.Slug}/auth", Case.Insensitive);
+        (await client.PostAsJsonAsync(
+            workspace.PortalPath("/auth/reset-password"),
+            new ResetPasswordRequest(mail.Token, TestWorkspaces.DefaultPassword))).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        var login = await client.PostAsJsonAsync(
+            workspace.PortalPath("/auth/login"),
+            new LoginRequest(email, TestWorkspaces.DefaultPassword));
+        var auth = await login.ReadAsync<PortalAuthResponse>();
+        auth.Customer.ShouldBe(new PortalCustomerDto(auth.Customer.Id, email, "Casey Customer"));
+        login.Headers.GetValues("Set-Cookie").Single().ShouldContain($"path=/api/v1/portal/{workspace.Slug}/auth", Case.Insensitive);
 
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
         (await client.GetAsync<PortalCustomerDto>(workspace.PortalPath("/auth/me"))).FullName.ShouldBe("Casey Customer");
@@ -123,17 +133,45 @@ public sealed class PortalTests(ApiFactory factory)
             new LoginRequest(email, "Wrong-password-1"));
         (await wrong.ProblemCodeAsync()).ShouldBe("invalid-credentials");
         (await factory.CreateBareClient().PostAsJsonAsync(
-            workspace.PortalPath("/auth/login"),
-            new LoginRequest(email, TestWorkspaces.DefaultPassword))).StatusCode.ShouldBe(HttpStatusCode.OK);
+            workspace.PortalPath("/auth/reset-password"),
+            new ResetPasswordRequest(mail.Token, "Reused-link-pass-1"))).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
 
-        // Signing up again with a confirmed address reveals nothing and sends a reset link instead.
+    [Fact]
+    public async Task Nobody_can_attach_a_password_or_a_name_to_an_address_they_do_not_control()
+    {
+        var workspace = await factory.CreateWorkspaceAsync();
+        var victim = TestWorkspaces.UniqueEmail("victim");
+        var history = await workspace.Client.CreateTicketAsync(TestTickets.NewTicket("Private refund question", victim));
+        var attacker = factory.CreateBareClient();
+
+        // The attacker fills in the sign-up form with the victim's address. All that happens is an email
+        // to the victim; the attacker gets no token and has no way to choose the password.
+        (await attacker.PostAsJsonAsync(workspace.PortalPath("/auth/register"), new PortalRegisterRequest("Mallory", victim)))
+            .StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        (await attacker.PostAsJsonAsync(workspace.PortalPath("/auth/login"), new LoginRequest(victim, TestWorkspaces.DefaultPassword)))
+            .StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await workspace.Client.GetAsync<TicketDetailDto>($"/api/v1/tickets/{history.Id}")).Requester.Name.ShouldBe("Casey Customer");
+
+        // The victim opens the email and chooses their own password; only that password works.
+        var link = factory.Emails.Last(victim, "portal-welcome");
         (await factory.CreateBareClient().PostAsJsonAsync(
-            workspace.PortalPath("/auth/register"),
-            new PortalRegisterRequest("Imposter", email, "Another-pass-1"))).StatusCode.ShouldBe(HttpStatusCode.Accepted);
-        factory.Emails.Count(email, "portal-reset-password").ShouldBe(1);
+            workspace.PortalPath("/auth/reset-password"),
+            new ResetPasswordRequest(link.Token, "Victims-own-pass-1"))).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await attacker.PostAsJsonAsync(workspace.PortalPath("/auth/login"), new LoginRequest(victim, TestWorkspaces.DefaultPassword)))
+            .StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        var owner = await factory.CreateBareClient().PostAsJsonAsync(
+            workspace.PortalPath("/auth/login"),
+            new LoginRequest(victim, "Victims-own-pass-1"));
+        owner.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // Trying again once the account exists changes nothing either: the owner just gets another email.
+        (await attacker.PostAsJsonAsync(workspace.PortalPath("/auth/register"), new PortalRegisterRequest("Mallory", victim)))
+            .StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        factory.Emails.Count(victim, "portal-reset-password").ShouldBe(1);
         (await factory.CreateBareClient().PostAsJsonAsync(
             workspace.PortalPath("/auth/login"),
-            new LoginRequest(email, "Another-pass-1"))).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+            new LoginRequest(victim, "Victims-own-pass-1"))).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]

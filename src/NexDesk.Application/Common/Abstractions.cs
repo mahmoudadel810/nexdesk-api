@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using NexDesk.Domain.Common;
 using NexDesk.Domain.Customers;
 using NexDesk.Domain.Identity;
+using NexDesk.Domain.KnowledgeBase;
 using NexDesk.Domain.Notifications;
 using NexDesk.Domain.Sla;
 using NexDesk.Domain.Teams;
@@ -55,6 +56,10 @@ public interface IAppDbContext
     DbSet<Notification> Notifications { get; }
 
     DbSet<NotificationPreference> NotificationPreferences { get; }
+
+    DbSet<KbCategory> KbCategories { get; }
+
+    DbSet<KbArticle> KbArticles { get; }
 
     /// <summary>Forgets every tracked change, so an operation can be retried from fresh data.</summary>
     void DiscardChanges();

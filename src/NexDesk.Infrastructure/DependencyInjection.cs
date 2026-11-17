@@ -4,8 +4,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NexDesk.Application.Common;
+using NexDesk.Application.KnowledgeBase;
 using NexDesk.Infrastructure.Email;
 using NexDesk.Infrastructure.Identity;
+using NexDesk.Infrastructure.KnowledgeBase;
 using NexDesk.Infrastructure.Persistence;
 using NexDesk.Infrastructure.Sla;
 using NexDesk.Infrastructure.Tenancy;
@@ -45,6 +47,8 @@ public static class DependencyInjection
         services.AddSingleton<IFileStorage, LocalDiskFileStorage>();
         services.AddScoped<ITicketNumberAllocator, TicketNumberAllocator>();
         services.AddScoped<ITicketSearch, TicketSearch>();
+        services.AddScoped<IKbSearch, KbSearch>();
+        services.AddSingleton<IMarkdownRenderer, MarkdownRenderer>();
         services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
 
         services.AddMemoryCache();

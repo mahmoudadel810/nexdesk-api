@@ -92,6 +92,7 @@ v1.MapWorkspaceEndpoints();
 v1.MapTicketEndpoints();
 v1.MapSlaEndpoints();
 v1.MapNotificationEndpoints();
+v1.MapKnowledgeBaseEndpoints();
 v1.MapPortalEndpoints();
 app.MapHub<NotificationsHub>(NotificationsHub.Path);
 

@@ -62,6 +62,7 @@ public static class DependencyInjection
         services.TryAddScoped<IRequestOrigin, NoRequestOrigin>();
         services.AddScoped<AuditRecorder>();
         services.AddScoped<IApiKeyDirectory, ApiKeyDirectory>();
+        services.AddWebhookDelivery();
 
         services.AddMemoryCache();
         services.AddScoped<IIdentityDirectory, IdentityDirectory>();

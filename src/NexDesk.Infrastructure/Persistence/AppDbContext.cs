@@ -96,6 +96,10 @@ public sealed class AppDbContext(
 
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
 
+    public DbSet<WebhookEndpoint> WebhookEndpoints => Set<WebhookEndpoint>();
+
+    public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
+
     public void DiscardChanges() => ChangeTracker.Clear();
 
     private Guid? CurrentTenantId => tenant.TenantId;

@@ -6,7 +6,9 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NexDesk.Application.Common;
+using NexDesk.Application.Developer;
 using NexDesk.Domain.Tickets;
+using NexDesk.Infrastructure.Developer;
 using NexDesk.Infrastructure.Email;
 using Testcontainers.PostgreSql;
 
@@ -21,6 +23,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     public const string InboundSecret = "integration-tests-inbound-secret";
 
     public CapturedEmails Emails { get; } = new();
+
+    public WebhookReceiver Webhooks { get; } = new();
 
     /// <summary>Ids of tickets whose creation event reached a domain event handler.</summary>
     public ConcurrentBag<Guid> CreatedTicketEvents { get; } = [];
@@ -55,6 +59,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.RemoveAll<IEmailDispatcher>();
             services.AddScoped<IEmailDispatcher, CapturingEmailDispatcher>();
             services.AddSingleton(CreatedTicketEvents);
+            services.AddSingleton(Webhooks);
+            services.AddHttpClient(DeliverWebhookJob.HttpClientName)
+                .ConfigurePrimaryHttpMessageHandler(provider => new ReceiverHandler(provider.GetRequiredService<WebhookReceiver>()));
+            services.RemoveAll<IWebhookDispatcher>();
+            services.AddScoped<IWebhookDispatcher, InlineWebhookDispatcher>();
             services.AddScoped<IDomainEventHandler<TicketCreated>, FailingTicketCreatedHandler>();
             services.AddScoped<IDomainEventHandler<TicketCreated>, RecordingTicketCreatedHandler>();
         });

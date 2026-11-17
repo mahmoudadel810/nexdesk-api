@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using NexDesk.Application.Billing;
 using NexDesk.Application.Common;
 using NexDesk.Domain.Billing;
+using NexDesk.Domain.Developer;
 using NexDesk.Domain.Tenants;
 using NexDesk.Infrastructure.Persistence;
 using QuestPDF.Drawing;
@@ -283,6 +284,8 @@ public sealed class CleanupJob(IServiceScopeFactory scopes, TimeProvider clock, 
 
     public static readonly TimeSpan ExecutionRetention = TimeSpan.FromDays(90);
 
+    public static readonly TimeSpan WebhookDeliveryRetention = TimeSpan.FromDays(30);
+
     [DisableConcurrentExecution(timeoutInSeconds: 600)]
     [AutomaticRetry(Attempts = 0)]
     public async Task RunAsync(CancellationToken cancellationToken)
@@ -312,13 +315,20 @@ public sealed class CleanupJob(IServiceScopeFactory scopes, TimeProvider clock, 
                     newer.RuleId == e.RuleId && newer.TicketId == e.TicketId && newer.CreatedAt > e.CreatedAt))
             .ExecuteDeleteAsync(cancellationToken);
 
+        var deliveryCutoff = now - WebhookDeliveryRetention;
+        var deliveries = await db.WebhookDeliveries
+            .IgnoreQueryFilters()
+            .Where(d => d.CreatedAt < deliveryCutoff && d.Status != WebhookDeliveryStatus.Pending)
+            .ExecuteDeleteAsync(cancellationToken);
+
         logger.LogInformation(
-            "Cleanup removed {RefreshTokens} refresh tokens, {OneTimeTokens} one-time tokens, {Invitations} invitations "
-            + "and {Executions} automation log entries",
+            "Cleanup removed {RefreshTokens} refresh tokens, {OneTimeTokens} one-time tokens, {Invitations} invitations, "
+            + "{Executions} automation log entries and {Deliveries} webhook deliveries",
             refreshTokens,
             oneTimeTokens,
             invitations,
-            executions);
+            executions,
+            deliveries);
     }
 }
 

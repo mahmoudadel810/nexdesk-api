@@ -81,6 +81,10 @@ public interface IAppDbContext
 
     DbSet<ApiKey> ApiKeys { get; }
 
+    DbSet<WebhookEndpoint> WebhookEndpoints { get; }
+
+    DbSet<WebhookDelivery> WebhookDeliveries { get; }
+
     /// <summary>Forgets every tracked change, so an operation can be retried from fresh data.</summary>
     void DiscardChanges();
 

@@ -35,6 +35,8 @@ services:
       Email__Port: 1025
       App__WebBaseUrl: ${WEB_BASE_URL:-http://localhost:4200}
       Storage__RootPath: /var/lib/nexdesk/storage
+      # Lets webhooks reach a receiver on this machine or network, for trying them out locally.
+      Webhooks__AllowPrivateNetworks: ${WEBHOOKS_ALLOW_PRIVATE_NETWORKS:-false}
     volumes:
       - attachment-data:/var/lib/nexdesk/storage
     ports:

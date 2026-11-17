@@ -74,6 +74,7 @@ internal static class AuditCatalog
         [typeof(Subscription)] = new("subscription"),
         [typeof(Invoice)] = new("invoice"),
         [typeof(ApiKey)] = new("api-key", "Prefix", "LastUsedAt"),
+        [typeof(WebhookEndpoint)] = new("webhook"),
 
         // Deadlines, warnings and activity times are kept up to date by the system; the ticket's own
         // timeline already explains them.
@@ -265,7 +266,7 @@ internal sealed class AuditRecorder(
         Subscription subscription => subscription.PlanCode,
         Holiday holiday => $"{holiday.Name} ({holiday.Date:yyyy-MM-dd})",
         TeamMember member => member.UserId.ToString(),
-        _ => FirstText(entry, "Name", "Title", "FullName", "Label", "Email"),
+        _ => FirstText(entry, "Name", "Title", "FullName", "Label", "Email", "Url"),
     };
 
     private static string? FirstText(EntityEntry entry, params string[] names) =>

@@ -153,6 +153,7 @@ internal sealed class ResendInvitationHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
     InvitationMailer mailer,
+    IEntitlementService entitlements,
     TimeProvider clock) : ICommandHandler<ResendInvitationCommand, InvitationDto>
 {
     public async Task<Result<InvitationDto>> Handle(ResendInvitationCommand command, CancellationToken cancellationToken)
@@ -167,6 +168,14 @@ internal sealed class ResendInvitationHandler(
         if (invitation.StatusAt(now) is InvitationStatus.Accepted or InvitationStatus.Revoked)
         {
             return InvitationErrors.NoLongerPending;
+        }
+
+        // An expired invitation gave its seat back, so reviving it needs a free seat again.
+        if (invitation.StatusAt(now) == InvitationStatus.Expired
+            && invitation.Role != Role.Viewer
+            && await entitlements.CanAddAgent(cancellationToken) is { } limit)
+        {
+            return limit;
         }
 
         var secret = mailer.NewToken(out var hash);

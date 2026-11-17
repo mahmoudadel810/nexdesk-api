@@ -80,16 +80,16 @@ public static class RateLimitingSetup
             return RateLimitPartition.GetNoLimiter("unlimited");
         }
 
-        // A workspace's staff share its plan's allowance. The limit is part of the key, so a plan
-        // change takes effect at once instead of when the old window happens to end.
-        if (StaffTenantId(http) is { } tenantId && http.Items[PlanLimitItem] is int planLimit)
+        // Each team member gets the allowance of the workspace's plan. The limit is part of the key, so
+        // a plan change takes effect at once instead of when the old window happens to end.
+        var person = http.User.Identity?.IsAuthenticated == true ? http.User.FindFirst(NexDeskClaims.Subject)?.Value : null;
+        if (person is not null && StaffTenantId(http) is not null && http.Items[PlanLimitItem] is int planLimit)
         {
-            return FixedWindow($"tenant:{tenantId}:{planLimit}", planLimit);
+            return FixedWindow($"member:{person}:{planLimit}", planLimit);
         }
 
-        var customer = http.User.FindFirst(NexDeskClaims.Subject)?.Value;
-        return customer is not null && http.User.Identity?.IsAuthenticated == true
-            ? FixedWindow($"person:{customer}", options.AnonymousPerMinute)
+        return person is not null
+            ? FixedWindow($"customer:{person}", options.AnonymousPerMinute)
             : FixedWindow($"address:{Address(http)}", options.AnonymousPerMinute);
     }
 

@@ -123,8 +123,8 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                 columns: new[] { "code", "api_access", "max_agents", "max_automation_rules", "max_storage_bytes", "max_tickets_per_month", "name", "position", "price_cents_monthly", "requests_per_minute" },
                 values: new object[,]
                 {
-                    { "business", true, null, null, 214748364800L, null, "Business", 2, 9900, 3000 },
-                    { "free", false, 3, 3, 1073741824L, 100, "Free", 0, 0, 120 },
+                    { "business", true, null, null, 214748364800L, null, "Business", 2, 9900, 1200 },
+                    { "free", false, 3, 3, 1073741824L, 100, "Free", 0, 0, 240 },
                     { "pro", false, 10, 10, 21474836480L, 2000, "Pro", 1, 2900, 600 }
                 });
 

@@ -47,8 +47,8 @@ builder.Services.AddNexDeskOpenApi();
 builder.Services.AddNexDeskRateLimiting();
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
-    // The reverse proxy runs next to the API on a private network. A forwarded address is only believed
-    // when it comes from there, so a caller cannot dodge the rate limit by inventing one.
+    // The reverse proxy runs next to the API on a private network, so a forwarded address is only
+    // believed when it comes from one. The API itself must not be reachable from that network by others.
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
     foreach (var network in new[] { "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16" })
     {

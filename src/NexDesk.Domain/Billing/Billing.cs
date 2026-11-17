@@ -33,7 +33,7 @@ public sealed class Plan
 
     public bool ApiAccess { get; private set; }
 
-    /// <summary>How many API requests a workspace on this plan may make per minute.</summary>
+    /// <summary>How many API requests each team member of a workspace on this plan may make per minute.</summary>
     public int RequestsPerMinute { get; private set; }
 
     public int Position { get; private set; }
@@ -53,7 +53,7 @@ public sealed class Plan
             MaxStorageBytes = Gigabyte,
             MaxAutomationRules = 3,
             ApiAccess = false,
-            RequestsPerMinute = 120,
+            RequestsPerMinute = 240,
             Position = 0,
         },
         new()
@@ -79,7 +79,7 @@ public sealed class Plan
             MaxStorageBytes = 200 * Gigabyte,
             MaxAutomationRules = null,
             ApiAccess = true,
-            RequestsPerMinute = 3000,
+            RequestsPerMinute = 1200,
             Position = 2,
         },
     ];

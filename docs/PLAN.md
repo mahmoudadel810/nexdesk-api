@@ -103,8 +103,8 @@ upsert per ticket, so deleting tickets does not hand the allowance back; the oth
 from the rows themselves. Payments are simulated: checkout validates a card number, keeps only its
 brand and last four digits, and issues an invoice that is paid on the spot.
 
-Requests are rate limited per minute: a workspace's staff share the allowance of its plan, everyone
-else is limited per address, and sign-in and other credential endpoints have a much smaller budget.
+Requests are rate limited per minute: each team member gets the allowance of the workspace's plan,
+everyone else is limited per address, and sign-in and other credential endpoints have a much smaller budget.
 
 ### 1.7a Tenant provisioning
 
@@ -326,3 +326,8 @@ format check, unit tests and a production build for the web client.
 
 - **Demo data (phase 15):** tickets seeded with dates in the past are due for every time-based rule on
   the first sweep. Seeded rules therefore name a status.
+- **API keys (phase 12):** requests made with an API key need `RequireApiAccess` and a rate-limit
+  partition per key with the plan's allowance.
+- **End-to-end tests (phase 15):** every Playwright sign-in comes from one address, so the suite raises
+  `RateLimiting__AuthPerMinute` through the environment. Demo workspaces go on a paid plan before the
+  seeder opens more tickets than the free plan allows.

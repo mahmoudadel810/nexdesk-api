@@ -315,7 +315,7 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                             Name = "Free",
                             Position = 0,
                             PriceCentsMonthly = 0,
-                            RequestsPerMinute = 120
+                            RequestsPerMinute = 240
                         },
                         new
                         {
@@ -338,7 +338,7 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                             Name = "Business",
                             Position = 2,
                             PriceCentsMonthly = 9900,
-                            RequestsPerMinute = 3000
+                            RequestsPerMinute = 1200
                         });
                 });
 

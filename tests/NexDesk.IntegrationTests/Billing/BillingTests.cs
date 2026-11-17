@@ -2,10 +2,12 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NexDesk.Api.Endpoints;
 using NexDesk.Application.Billing;
 using NexDesk.Application.Common;
+using NexDesk.Application.Users;
 using NexDesk.Domain.Automation;
 using NexDesk.Domain.Billing;
 using NexDesk.Domain.Common;
@@ -246,25 +248,88 @@ public sealed class BillingTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task The_scheduled_jobs_renew_what_is_due_and_clean_up_without_touching_live_data()
+    public async Task The_scheduled_jobs_renew_what_is_due_and_remove_only_what_is_stale()
     {
         var workspace = await factory.CreateWorkspaceAsync();
+        var bystander = await factory.CreateWorkspaceAsync();
         await workspace.Client.ChangePlanAsync(Plan.Pro);
+        await bystander.Client.ChangePlanAsync(Plan.Pro);
         var rule = await (await AddRule(workspace.Client, "Keep me")).ReadAsync<NexDesk.Application.Automation.AutomationRuleDto>();
         (await workspace.Client.PostAsync($"/api/v1/automation/rules/{rule.Id}/enable", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
-        await workspace.Client.CreateTicketAsync();
+        var ticket = await workspace.Client.CreateTicketAsync();
+        var expired = TestWorkspaces.UniqueEmail("expired");
+        (await workspace.Client.PostAsJsonAsync(
+            "/api/v1/invitations", new CreateInvitationRequest(expired, Role.Viewer), TestJson.Options))
+            .StatusCode.ShouldBe(HttpStatusCode.Created);
 
-        await using var scope = factory.Services.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<NexDesk.Infrastructure.Billing.SubscriptionRenewalJob>()
-            .RunAsync(CancellationToken.None);
-        await scope.ServiceProvider.GetRequiredService<NexDesk.Infrastructure.Billing.CleanupJob>()
-            .RunAsync(CancellationToken.None);
+        // Age the data: the paid period ended, the invitation lapsed long ago, and the rule ran on the
+        // ticket twice more over the past year.
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<NexDesk.Infrastructure.Persistence.AppDbContext>();
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE subscriptions SET current_period_end = now() - interval '1 hour' WHERE tenant_id = {workspace.TenantId}");
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE invitations SET expires_at = now() - interval '30 days' WHERE email = {expired}");
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"""
+                INSERT INTO automation_executions (id, tenant_id, rule_id, ticket_id, ticket_number, ticket_subject, outcome, steps, created_at)
+                SELECT gen_random_uuid(), tenant_id, rule_id, ticket_id, ticket_number, ticket_subject, outcome, steps, now() - age
+                FROM automation_executions, (VALUES (interval '300 days'), (interval '200 days')) AS old(age)
+                WHERE rule_id = {rule.Id}
+                """);
+        }
 
-        // Nothing was due and nothing was old enough: one invoice, a working session and the rule's log remain.
-        (await workspace.Client.GetAsync<PagedResult<InvoiceDto>>("/api/v1/billing/invoices")).TotalCount.ShouldBe(1);
+        Task<PagedResult<NexDesk.Application.Automation.AutomationExecutionDto>> Log() =>
+            workspace.Client.GetAsync<PagedResult<NexDesk.Application.Automation.AutomationExecutionDto>>(
+                $"/api/v1/automation/rules/{rule.Id}/executions");
+        (await Log()).TotalCount.ShouldBe(3);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<NexDesk.Infrastructure.Billing.SubscriptionRenewalJob>()
+                .RunAsync(CancellationToken.None);
+            await scope.ServiceProvider.GetRequiredService<NexDesk.Infrastructure.Billing.CleanupJob>()
+                .RunAsync(CancellationToken.None);
+        }
+
+        // The due subscription was billed again, the other one was not.
+        var invoices = (await workspace.Client.GetAsync<PagedResult<InvoiceDto>>("/api/v1/billing/invoices")).Items;
+        invoices.Select(i => i.Reason).ShouldBe([InvoiceReason.Renewal, InvoiceReason.PlanChange]);
+        (await workspace.Client.GetAsync<SubscriptionDto>("/api/v1/billing/subscription"))
+            .CurrentPeriodEnd!.Value.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddDays(20));
+        (await bystander.Client.GetAsync<PagedResult<InvoiceDto>>("/api/v1/billing/invoices")).TotalCount.ShouldBe(1);
+
+        // Old log entries go, except that the newest one for the ticket always stays.
+        var log = await Log();
+        log.Items.ShouldHaveSingleItem().TicketId.ShouldBe(ticket.Id);
+        log.Items[0].CreatedAt.ShouldBe(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(5));
+
+        // The lapsed invitation is gone; live sessions are untouched.
+        (await workspace.Client.GetAsync<List<InvitationDto>>("/api/v1/invitations")).ShouldNotContain(i => i.Email == expired);
         (await factory.CreateBareClient().RefreshAsync(workspace.RefreshCookie)).StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await workspace.Client.GetAsync<PagedResult<NexDesk.Application.Automation.AutomationExecutionDto>>(
-            $"/api/v1/automation/rules/{rule.Id}/executions")).TotalCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Reviving_an_expired_invitation_needs_a_free_seat()
+    {
+        var workspace = await factory.CreateWorkspaceAsync();
+        var lapsed = TestWorkspaces.UniqueEmail("lapsed");
+        var invitation = await (await workspace.Client.PostAsJsonAsync(
+            "/api/v1/invitations", new CreateInvitationRequest(lapsed, Role.Agent), TestJson.Options)).ReadAsync<InvitationDto>();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<NexDesk.Infrastructure.Persistence.AppDbContext>().Database
+                .ExecuteSqlInterpolatedAsync($"UPDATE invitations SET expires_at = now() - interval '1 day' WHERE email = {lapsed}");
+        }
+
+        // While it was expired, two other people took the remaining seats.
+        (await Invite(workspace.Client, Role.Agent)).StatusCode.ShouldBe(HttpStatusCode.Created);
+        (await Invite(workspace.Client, Role.Agent)).StatusCode.ShouldBe(HttpStatusCode.Created);
+        await ShouldHitLimit(workspace.Client.PostAsync($"/api/v1/invitations/{invitation.Id}/resend", null), "plan-limit-agents");
+
+        await workspace.Client.ChangePlanAsync(Plan.Pro);
+        (await workspace.Client.PostAsync($"/api/v1/invitations/{invitation.Id}/resend", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]
@@ -318,23 +383,34 @@ public sealed class BillingTests(ApiFactory factory)
         int.Parse(throttled.Headers.GetValues("Retry-After").Single()).ShouldBeInRange(1, 60);
         (await visitor.GetAsync("/health/live")).StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        // The free plan allows 120 requests a minute for the whole workspace.
+        // Refreshing a session is not a guess at a password, so it keeps working for the same address.
+        (await visitor.RefreshAsync(workspace.RefreshCookie)).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // Every team member gets what the workspace's plan allows per minute.
+        var plans = await factory.CreateBareClient().GetAsync<List<PlanDto>>("/api/v1/billing/plans");
+        var freeLimit = plans.Single(p => p.Code == Plan.Free).RequestsPerMinute;
         var staff = limited.CreateClient(options);
         staff.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", workspace.AccessToken);
-        for (var request = 1; request <= 120; request++)
+        for (var request = 1; request <= freeLimit; request++)
         {
             (await staff.GetAsync("/api/v1/billing/usage")).StatusCode.ShouldBe(HttpStatusCode.OK);
         }
 
         (await staff.GetAsync("/api/v1/billing/usage")).StatusCode.ShouldBe(HttpStatusCode.TooManyRequests);
 
-        // Another workspace has its own allowance, and a bigger plan raises it from the next request on.
+        // A colleague has an allowance of their own, and so does every other workspace.
+        var colleague = await factory.AddMemberAsync(workspace, Role.Admin, "Adam Admin");
+        var colleagueClient = limited.CreateClient(options);
+        colleagueClient.DefaultRequestHeaders.Authorization = colleague.Client.DefaultRequestHeaders.Authorization;
+        (await colleagueClient.GetAsync("/api/v1/billing/usage")).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // A bigger plan raises the allowance from the next request on.
         var other = await factory.CreateWorkspaceAsync();
         var otherStaff = limited.CreateClient(options);
         otherStaff.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", other.AccessToken);
         (await otherStaff.GetAsync("/api/v1/billing/usage")).StatusCode.ShouldBe(HttpStatusCode.OK);
         await otherStaff.ChangePlanAsync(Plan.Pro);
-        for (var request = 1; request <= 130; request++)
+        for (var request = 1; request <= freeLimit + 10; request++)
         {
             (await otherStaff.GetAsync("/api/v1/billing/usage")).StatusCode.ShouldBe(HttpStatusCode.OK);
         }

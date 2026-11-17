@@ -11,15 +11,6 @@ using NpgsqlTypes;
 
 namespace NexDesk.Infrastructure.Persistence.Configurations;
 
-internal static class TicketSchema
-{
-    /// <summary>Name of the generated full-text column on tickets and ticket messages.</summary>
-    public const string SearchVector = "SearchVector";
-
-    /// <summary>Text search configuration without stemming, so it works for English and Arabic alike.</summary>
-    public const string SearchConfig = "simple";
-}
-
 internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
 {
     public void Configure(EntityTypeBuilder<Customer> builder)
@@ -65,9 +56,9 @@ internal sealed class TicketConfiguration : IEntityTypeConfiguration<Ticket>
         // PostgreSQL's row version: it changes on every update, so no extra column or trigger is needed.
         builder.Property(t => t.Version).HasColumnName("xmin").HasColumnType("xid").IsRowVersion();
 
-        builder.Property<NpgsqlTsVector>(TicketSchema.SearchVector)
-            .HasComputedColumnSql($"to_tsvector('{TicketSchema.SearchConfig}', subject)", stored: true);
-        builder.HasIndex(TicketSchema.SearchVector).HasMethod("gin");
+        builder.Property<NpgsqlTsVector>(FullText.SearchVector)
+            .HasComputedColumnSql($"to_tsvector('{FullText.Config}', subject)", stored: true);
+        builder.HasIndex(FullText.SearchVector).HasMethod("gin");
         builder.HasOne<Ticket>().WithMany().HasForeignKey(t => t.MergedIntoId).OnDelete(DeleteBehavior.SetNull);
 
         builder.HasIndex(t => new { t.TenantId, t.Number }).IsUnique();
@@ -99,9 +90,9 @@ internal sealed class TicketMessageConfiguration : IEntityTypeConfiguration<Tick
         builder.Property(m => m.Id).ValueGeneratedNever();
         builder.Property(m => m.Body).HasMaxLength(TicketMessage.BodyMaxLength);
         builder.HasIndex(m => new { m.TicketId, m.CreatedAt });
-        builder.Property<NpgsqlTsVector>(TicketSchema.SearchVector)
-            .HasComputedColumnSql($"to_tsvector('{TicketSchema.SearchConfig}', body)", stored: true);
-        builder.HasIndex(TicketSchema.SearchVector).HasMethod("gin");
+        builder.Property<NpgsqlTsVector>(FullText.SearchVector)
+            .HasComputedColumnSql($"to_tsvector('{FullText.Config}', body)", stored: true);
+        builder.HasIndex(FullText.SearchVector).HasMethod("gin");
     }
 }
 

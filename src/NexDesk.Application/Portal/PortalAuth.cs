@@ -10,7 +10,13 @@ using NexDesk.Domain.Tenants;
 namespace NexDesk.Application.Portal;
 
 /// <summary>What the public needs to know about a workspace to show its help centre.</summary>
-public sealed record PortalInfoDto(string Name, string Slug, string DefaultLanguage);
+public sealed record PortalInfoDto(
+    string Name,
+    string Slug,
+    string DefaultLanguage,
+    string? BrandColor = null,
+    string? WelcomeText = null,
+    string? LogoUrl = null);
 
 public sealed record PortalCustomerDto(Guid Id, string Email, string FullName);
 
@@ -138,7 +144,13 @@ internal sealed class GetPortalInfoHandler(IAppDbContext db) : IQueryHandler<Get
             .FirstOrDefaultAsync(t => t.Slug == query.Slug && t.Status == TenantStatus.Active, cancellationToken);
         return tenant is null
             ? PortalErrors.WorkspaceNotFound
-            : new PortalInfoDto(tenant.Name, tenant.Slug, tenant.DefaultLanguage);
+            : new PortalInfoDto(
+                tenant.Name,
+                tenant.Slug,
+                tenant.DefaultLanguage,
+                tenant.BrandColor,
+                tenant.PortalWelcomeText,
+                Tenants.WorkspaceSettingsDto.LogoUrlOf(tenant));
     }
 }
 

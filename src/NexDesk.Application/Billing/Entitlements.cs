@@ -79,7 +79,7 @@ public interface IEntitlementService
     Task<Error?> RequireApiAccess(CancellationToken cancellationToken);
 }
 
-internal sealed class EntitlementService(IAppDbContext db, TimeProvider clock) : IEntitlementService
+internal sealed class EntitlementService(IAppDbContext db, ITenantContext tenant, TimeProvider clock) : IEntitlementService
 {
     private Plan? _plan;
 
@@ -163,8 +163,10 @@ internal sealed class EntitlementService(IAppDbContext db, TimeProvider clock) :
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    /// <summary>Attachments plus the workspace logo.</summary>
     private async Task<long> StorageBytes(CancellationToken cancellationToken) =>
-        await db.Attachments.SumAsync(a => (long?)a.SizeBytes, cancellationToken) ?? 0;
+        (await db.Attachments.SumAsync(a => (long?)a.SizeBytes, cancellationToken) ?? 0)
+        + await db.Tenants.Where(t => t.Id == tenant.TenantId).Select(t => t.LogoSizeBytes).FirstOrDefaultAsync(cancellationToken);
 }
 
 /// <summary>Counts what a workspace consumes against its monthly allowances.</summary>

@@ -113,6 +113,7 @@ v1.MapBillingEndpoints();
 v1.MapReportEndpoints();
 v1.MapAuditEndpoints();
 v1.MapDeveloperEndpoints();
+v1.MapSettingsEndpoints();
 app.MapPublicApiEndpoints();
 v1.MapPortalEndpoints();
 app.MapHub<NotificationsHub>(NotificationsHub.Path);

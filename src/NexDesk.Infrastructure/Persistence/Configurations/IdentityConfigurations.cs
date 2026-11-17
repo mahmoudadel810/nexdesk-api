@@ -15,6 +15,10 @@ internal sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.Property(t => t.Slug).HasMaxLength(Tenant.SlugMaxLength);
         builder.Property(t => t.Timezone).HasMaxLength(64);
         builder.Property(t => t.DefaultLanguage).HasMaxLength(8);
+        builder.Property(t => t.BrandColor).HasMaxLength(7);
+        builder.Property(t => t.PortalWelcomeText).HasMaxLength(Tenant.WelcomeTextMaxLength);
+        builder.Property(t => t.LogoFileKey).HasMaxLength(200);
+        builder.Property(t => t.LogoContentType).HasMaxLength(64);
         builder.HasIndex(t => t.Slug).IsUnique();
     }
 }

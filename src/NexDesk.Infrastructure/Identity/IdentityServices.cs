@@ -20,6 +20,7 @@ public sealed class JwtOptions
 {
     public const string SectionName = "Jwt";
     public const string StaffAudience = "nexdesk-staff";
+    public const string PortalAudience = "nexdesk-portal";
 
     [Required]
     public string Issuer { get; set; } = "nexdesk";
@@ -131,6 +132,30 @@ internal sealed class JwtTokenService(
         return new AccessToken(token, expires);
     }
 
+    public AccessToken CreateCustomerAccessToken(NexDesk.Domain.Customers.Customer customer)
+    {
+        var now = clock.GetUtcNow();
+        var expires = now.AddMinutes(authOptions.Value.AccessTokenMinutes);
+        var token = _handler.CreateToken(new SecurityTokenDescriptor
+        {
+            Issuer = jwtOptions.Value.Issuer,
+            Audience = JwtOptions.PortalAudience,
+            Subject = new ClaimsIdentity(
+            [
+                new Claim(NexDeskClaims.Subject, customer.Id.ToString()),
+                new Claim(NexDeskClaims.TenantId, customer.TenantId.ToString()),
+                new Claim(
+                    NexDeskClaims.SecurityVersion,
+                    customer.SecurityVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            ]),
+            IssuedAt = now.UtcDateTime,
+            NotBefore = now.UtcDateTime,
+            Expires = expires.UtcDateTime,
+            SigningCredentials = new SigningCredentials(jwtOptions.Value.CreateKey(), SecurityAlgorithms.HmacSha256),
+        });
+        return new AccessToken(token, expires);
+    }
+
     public string CreateSecret() => Base64UrlEncoder.Encode(RandomNumberGenerator.GetBytes(32));
 
     public string HashSecret(string secret) =>
@@ -151,6 +176,34 @@ public sealed class SessionStateCache(IMemoryCache cache, IServiceScopeFactory s
     private static readonly TimeSpan Lifetime = TimeSpan.FromSeconds(30);
 
     public void Invalidate(Guid userId) => cache.Remove(Key(userId));
+
+    public void InvalidateCustomer(Guid customerId) => cache.Remove(CustomerKey(customerId));
+
+    /// <summary>Whether a portal token still matches its customer and the workspace is open.</summary>
+    public async Task<SessionState> CheckCustomerAsync(Guid customerId, int securityVersion, CancellationToken cancellationToken)
+    {
+        var snapshot = await cache.GetOrCreateAsync(CustomerKey(customerId), async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = Lifetime;
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            return await db.Customers
+                .IgnoreQueryFilters([AppDbContext.TenantFilter])
+                .Where(c => c.Id == customerId)
+                .Select(c => new Snapshot(
+                    true,
+                    c.SecurityVersion,
+                    db.Tenants.Any(t => t.Id == c.TenantId && t.Status == TenantStatus.Suspended)))
+                .FirstOrDefaultAsync(cancellationToken);
+        });
+
+        if (snapshot is null || snapshot.SecurityVersion != securityVersion)
+        {
+            return SessionState.Invalid;
+        }
+
+        return snapshot.TenantSuspended ? SessionState.TenantSuspended : SessionState.Valid;
+    }
 
     public async Task<SessionState> CheckAsync(Guid userId, int securityVersion, CancellationToken cancellationToken)
     {
@@ -178,6 +231,8 @@ public sealed class SessionStateCache(IMemoryCache cache, IServiceScopeFactory s
     }
 
     private static string Key(Guid userId) => $"session-state:{userId}";
+
+    private static string CustomerKey(Guid customerId) => $"portal-session-state:{customerId}";
 
     private sealed record Snapshot(bool IsActive, int SecurityVersion, bool TenantSuspended);
 }

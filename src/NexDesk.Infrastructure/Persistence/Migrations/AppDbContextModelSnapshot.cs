@@ -45,11 +45,36 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                         .HasColumnType("citext")
                         .HasColumnName("email");
 
+                    b.Property<DateTimeOffset?>("EmailVerifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("email_verified_at");
+
+                    b.Property<int>("FailedLoginCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("failed_login_count");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("full_name");
+
+                    b.Property<DateTimeOffset?>("LastLoginAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_login_at");
+
+                    b.Property<DateTimeOffset?>("LockedUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("locked_until");
+
+                    b.Property<string>("PasswordHash")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("password_hash");
+
+                    b.Property<int>("SecurityVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("security_version");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid")
@@ -859,6 +884,56 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                     b.ToTable("attachments", (string)null);
                 });
 
+            modelBuilder.Entity("NexDesk.Domain.Tickets.CsatResponse", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("comment");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("integer")
+                        .HasColumnName("rating");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<Guid>("TicketId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ticket_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_csat_responses");
+
+                    b.HasIndex("CustomerId")
+                        .HasDatabaseName("ix_csat_responses_customer_id");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_csat_responses_tenant_id");
+
+                    b.HasIndex("TicketId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_csat_responses_ticket_id");
+
+                    b.HasIndex("TenantId", "CreatedAt")
+                        .HasDatabaseName("ix_csat_responses_tenant_id_created_at");
+
+                    b.ToTable("csat_responses", (string)null);
+                });
+
             modelBuilder.Entity("NexDesk.Domain.Tickets.CustomField", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1521,6 +1596,23 @@ namespace NexDesk.Infrastructure.Persistence.Migrations
                         .HasForeignKey("TicketId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .HasConstraintName("fk_attachments_tickets_ticket_id");
+                });
+
+            modelBuilder.Entity("NexDesk.Domain.Tickets.CsatResponse", b =>
+                {
+                    b.HasOne("NexDesk.Domain.Customers.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_csat_responses_customers_customer_id");
+
+                    b.HasOne("NexDesk.Domain.Tickets.Ticket", null)
+                        .WithMany()
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_csat_responses_tickets_ticket_id");
                 });
 
             modelBuilder.Entity("NexDesk.Domain.Tickets.CustomField", b =>

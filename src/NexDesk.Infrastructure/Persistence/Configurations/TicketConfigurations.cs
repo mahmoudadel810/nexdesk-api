@@ -28,6 +28,9 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(c => c.Id).ValueGeneratedNever();
         builder.Property(c => c.Email).HasColumnType("citext").HasMaxLength(User.EmailMaxLength);
         builder.Property(c => c.FullName).HasMaxLength(Customer.FullNameMaxLength);
+        builder.Property(c => c.PasswordHash).HasMaxLength(256);
+        builder.Ignore(c => c.HasPortalAccount);
+        builder.Ignore(c => c.IsEmailVerified);
         builder.HasIndex(c => new { c.TenantId, c.Email }).IsUnique();
         builder.HasOne<Tenant>().WithMany().HasForeignKey(c => c.TenantId).OnDelete(DeleteBehavior.Cascade);
     }
@@ -140,6 +143,20 @@ internal sealed class AttachmentConfiguration : IEntityTypeConfiguration<Attachm
         builder.HasOne<Tenant>().WithMany().HasForeignKey(a => a.TenantId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<Ticket>().WithMany().HasForeignKey(a => a.TicketId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<TicketMessage>().WithMany().HasForeignKey(a => a.MessageId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class CsatResponseConfiguration : IEntityTypeConfiguration<CsatResponse>
+{
+    public void Configure(EntityTypeBuilder<CsatResponse> builder)
+    {
+        builder.ToTable("csat_responses");
+        builder.Property(c => c.Id).ValueGeneratedNever();
+        builder.Property(c => c.Comment).HasMaxLength(CsatResponse.CommentMaxLength);
+        builder.HasIndex(c => c.TicketId).IsUnique();
+        builder.HasIndex(c => new { c.TenantId, c.CreatedAt });
+        builder.HasOne<Ticket>().WithMany().HasForeignKey(c => c.TicketId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<Customer>().WithMany().HasForeignKey(c => c.CustomerId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 

@@ -64,6 +64,8 @@ public sealed class AppDbContext(
 
     public DbSet<SlaBreach> SlaBreaches => Set<SlaBreach>();
 
+    public DbSet<CsatResponse> CsatResponses => Set<CsatResponse>();
+
     public DbSet<Notification> Notifications => Set<Notification>();
 
     public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();

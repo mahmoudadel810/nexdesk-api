@@ -219,6 +219,86 @@ public sealed class AutomationTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task A_time_based_rule_only_picks_up_tickets_that_meet_every_condition()
+    {
+        var workspace = await factory.CreateWorkspaceAsync();
+        var agent = await factory.AddMemberAsync(workspace, Role.Agent);
+        var team = await (await workspace.Client.PostAsJsonAsync(
+            "/api/v1/teams", new SaveTeamRequest("Billing", null, []))).ReadAsync<NexDesk.Application.Teams.TeamDto>();
+        var rule = await CreateRuleAsync(
+            workspace.Client,
+            "Escalate idle billing tickets",
+            AutomationTrigger.TimeBased,
+            When(
+                ConditionMatch.All,
+                [
+                    new RuleCondition(ConditionField.HoursSinceLastActivity, ConditionOperator.AtLeast, "4"),
+                    new RuleCondition(ConditionField.Tags, ConditionOperator.Contains, "Billing"),
+                    new RuleCondition(ConditionField.Tags, ConditionOperator.NotContains, "spam"),
+                    new RuleCondition(ConditionField.Subject, ConditionOperator.Contains, "INVOICE"),
+                    new RuleCondition(ConditionField.Subject, ConditionOperator.NotContains, "100%_done"),
+                    new RuleCondition(ConditionField.Type, ConditionOperator.Is, "Incident"),
+                    new RuleCondition(ConditionField.Channel, ConditionOperator.IsNot, "Email"),
+                    new RuleCondition(ConditionField.Assignee, ConditionOperator.IsNot, workspace.OwnerId.ToString()),
+                    new RuleCondition(ConditionField.Team, ConditionOperator.Is, team.Id.ToString()),
+                ],
+                new RuleAction(RuleActionType.SetPriority, "Urgent")));
+
+        Task<TicketDetailDto> Open(string subject, string[] tags, Guid? assigneeId = null, Guid? teamId = null) =>
+            workspace.Client.CreateTicketAsync(TestTickets.NewTicket(subject, assigneeId: assigneeId, teamId: teamId, tags: tags));
+
+        var match = await Open("Wrong invoice total", ["billing"], agent.UserId, team.Id);
+        var unassigned = await Open("Missing invoice", ["billing", "vip"], teamId: team.Id);
+        await Open("Wrong invoice total", ["billing", "spam"], agent.UserId, team.Id);
+        await Open("Wrong invoice total", ["shipping"], agent.UserId, team.Id);
+        await Open("Cannot sign in", ["billing"], agent.UserId, team.Id);
+        await Open("Invoice 100%_done", ["billing"], agent.UserId, team.Id);
+        await Open("Wrong invoice total", ["billing"], workspace.OwnerId, team.Id);
+        await Open("Wrong invoice total", ["billing"], agent.UserId);
+
+        (await factory.SweepAutomationAsync(workspace.TenantId, DateTimeOffset.UtcNow.AddHours(5))).ShouldBe(2);
+        (await Log(workspace.Client, rule.Id)).Items.Select(e => e.TicketId).ShouldBe([match.Id, unassigned.Id], ignoreOrder: true);
+    }
+
+    [Fact]
+    public async Task A_time_based_rule_leaves_solved_tickets_alone_unless_it_names_a_status()
+    {
+        var workspace = await factory.CreateWorkspaceAsync();
+        var remind = await CreateRuleAsync(
+            workspace.Client,
+            "Flag idle tickets",
+            AutomationTrigger.TimeBased,
+            When(
+                ConditionMatch.All,
+                [new RuleCondition(ConditionField.HoursSinceLastActivity, ConditionOperator.AtLeast, "24")],
+                new RuleAction(RuleActionType.AddTag, "idle")));
+        var close = await CreateRuleAsync(
+            workspace.Client,
+            "Close what stayed solved for three days",
+            AutomationTrigger.TimeBased,
+            When(
+                ConditionMatch.All,
+                [
+                    new RuleCondition(ConditionField.Status, ConditionOperator.Is, "Solved"),
+                    new RuleCondition(ConditionField.HoursSinceLastActivity, ConditionOperator.AtLeast, "72"),
+                ],
+                new RuleAction(RuleActionType.SetStatus, "Closed")),
+            position: 1);
+        var solved = await workspace.Client.CreateTicketAsync();
+        var open = await workspace.Client.CreateTicketAsync();
+        await UpdateAsync(workspace.Client, solved.Id, new UpdateTicketRequest(null, TicketStatus.Solved, null, null, null));
+        var start = DateTimeOffset.UtcNow;
+
+        (await factory.SweepAutomationAsync(workspace.TenantId, start.AddHours(25))).ShouldBe(1);
+        (await Log(workspace.Client, remind.Id)).Items.ShouldHaveSingleItem().TicketId.ShouldBe(open.Id);
+        (await workspace.Client.GetAsync<TicketDetailDto>($"/api/v1/tickets/{solved.Id}")).Tags.ShouldBeEmpty();
+
+        (await factory.SweepAutomationAsync(workspace.TenantId, start.AddHours(73))).ShouldBe(1);
+        (await workspace.Client.GetAsync<TicketDetailDto>($"/api/v1/tickets/{solved.Id}")).Status.ShouldBe(TicketStatus.Closed);
+        (await Log(workspace.Client, close.Id)).Items.ShouldHaveSingleItem().TicketId.ShouldBe(solved.Id);
+    }
+
+    [Fact]
     public async Task Disabled_rules_do_not_run_and_deleting_a_rule_removes_its_log()
     {
         var workspace = await factory.CreateWorkspaceAsync();

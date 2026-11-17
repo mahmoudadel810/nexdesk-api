@@ -121,8 +121,13 @@ public sealed class AutomationEngine(
     }
 
     /// <summary>
-    /// Open tickets that have waited long enough and that the rule has not handled yet. A rule that
-    /// measures inactivity handles a ticket once per quiet period; any other rule handles it once.
+    /// Tickets that satisfy a time-based rule and that the rule has not handled yet. A rule that measures
+    /// inactivity handles a ticket once per quiet period; any other rule handles it once. Solved tickets
+    /// are left alone unless the rule names a status, so "idle for two days" does not chase finished work.
+    /// <para>
+    /// Every condition is part of the query. A ticket that fails one is therefore never loaded, and a
+    /// backlog of tickets that do not match cannot crowd out the ones that do.
+    /// </para>
     /// </summary>
     private async Task<List<Guid>> DueTicketIds(
         Guid ruleId,
@@ -131,10 +136,17 @@ public sealed class AutomationEngine(
         CancellationToken cancellationToken)
     {
         var tickets = db.Tickets.AsNoTracking().Where(t => t.Status != TicketStatus.Closed);
+        if (!definition.HasCondition(ConditionField.Status))
+        {
+            tickets = tickets.Where(t => t.Status != TicketStatus.Solved);
+        }
+
         var measuresInactivity = false;
         foreach (var condition in definition.Conditions)
         {
             var value = condition.Value?.Trim() ?? string.Empty;
+            var positive = condition.Operator is ConditionOperator.Is or ConditionOperator.Contains;
+            var nobody = value == RuleDefinition.None;
             switch (condition.Field)
             {
                 case ConditionField.HoursSinceLastActivity when int.TryParse(value, out var hours):
@@ -146,15 +158,45 @@ public sealed class AutomationEngine(
                     var createdBefore = now.AddHours(-hours);
                     tickets = tickets.Where(t => t.CreatedAt <= createdBefore);
                     break;
-                case ConditionField.Status when Enum.TryParse<TicketStatus>(value, out var status):
-                    tickets = condition.Operator == ConditionOperator.Is
-                        ? tickets.Where(t => t.Status == status)
-                        : tickets.Where(t => t.Status != status);
+                case ConditionField.Status when Enum.TryParse<TicketStatus>(value, true, out var status):
+                    tickets = tickets.Where(t => (t.Status == status) == positive);
                     break;
-                case ConditionField.Priority when Enum.TryParse<TicketPriority>(value, out var priority):
-                    tickets = condition.Operator == ConditionOperator.Is
-                        ? tickets.Where(t => t.Priority == priority)
-                        : tickets.Where(t => t.Priority != priority);
+                case ConditionField.Priority when Enum.TryParse<TicketPriority>(value, true, out var priority):
+                    tickets = tickets.Where(t => (t.Priority == priority) == positive);
+                    break;
+                case ConditionField.Type when Enum.TryParse<TicketType>(value, true, out var type):
+                    tickets = tickets.Where(t => (t.Type == type) == positive);
+                    break;
+                case ConditionField.Channel when Enum.TryParse<TicketChannel>(value, true, out var channel):
+                    tickets = tickets.Where(t => (t.Channel == channel) == positive);
+                    break;
+                case ConditionField.Assignee when nobody:
+                    tickets = tickets.Where(t => (t.AssigneeId == null) == positive);
+                    break;
+                case ConditionField.Assignee when Guid.TryParse(value, out var assigneeId):
+                    tickets = positive
+                        ? tickets.Where(t => t.AssigneeId == assigneeId)
+                        : tickets.Where(t => t.AssigneeId == null || t.AssigneeId != assigneeId);
+                    break;
+                case ConditionField.Team when nobody:
+                    tickets = tickets.Where(t => (t.TeamId == null) == positive);
+                    break;
+                case ConditionField.Team when Guid.TryParse(value, out var teamId):
+                    tickets = positive
+                        ? tickets.Where(t => t.TeamId == teamId)
+                        : tickets.Where(t => t.TeamId == null || t.TeamId != teamId);
+                    break;
+                case ConditionField.Tags:
+                    var tag = value.ToLowerInvariant();
+                    tickets = tickets.Where(t => t.Tags.Contains(tag) == positive);
+                    break;
+                case ConditionField.Subject:
+                    var text = value.ToLowerInvariant();
+                    tickets = tickets.Where(t => t.Subject.ToLower().Contains(text) == positive);
+                    break;
+                default:
+                    // A condition the query cannot express matches nothing, rather than everything.
+                    tickets = tickets.Where(_ => false);
                     break;
             }
         }

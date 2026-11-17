@@ -205,6 +205,35 @@ public static class OpenApiSetup
                 return Task.CompletedTask;
             });
 
+            // Route-group values such as the portal's {slug} are read by filters, not handlers, so the
+            // generator does not see them. OpenAPI requires every templated path segment to be declared.
+            options.AddOperationTransformer((operation, context, _) =>
+            {
+                var template = context.Description.RelativePath ?? string.Empty;
+                var declared = operation.Parameters?
+                    .Where(p => p.In == ParameterLocation.Path)
+                    .Select(p => p.Name)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase) ?? [];
+                foreach (System.Text.RegularExpressions.Match match in
+                    System.Text.RegularExpressions.Regex.Matches(template, @"\{(?<name>[A-Za-z0-9_]+)(:[^}]*)?\}"))
+                {
+                    var name = match.Groups["name"].Value;
+                    if (declared.Add(name))
+                    {
+                        operation.Parameters ??= [];
+                        operation.Parameters.Add(new OpenApiParameter
+                        {
+                            Name = name,
+                            In = ParameterLocation.Path,
+                            Required = true,
+                            Schema = new OpenApiSchema { Type = JsonSchemaType.String },
+                        });
+                    }
+                }
+
+                return Task.CompletedTask;
+            });
+
             options.AddSchemaTransformer((schema, context, _) =>
             {
                 if (Examples.TryGetValue(context.JsonTypeInfo.Type, out var example))

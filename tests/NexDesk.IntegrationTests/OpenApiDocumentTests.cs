@@ -67,6 +67,30 @@ public sealed class OpenApiDocumentTests(ApiFactory factory)
             .GetProperty("name").GetString().ShouldBe("X-Api-Key");
     }
 
+    [Fact]
+    public async Task Every_templated_path_segment_is_a_declared_path_parameter()
+    {
+        var document = await factory.CreateClient().GetFromJsonAsync<JsonElement>("/openapi/v1.json");
+
+        var missing = new List<string>();
+        foreach (var path in document.GetProperty("paths").EnumerateObject())
+        {
+            var names = System.Text.RegularExpressions.Regex.Matches(path.Name, @"\{([^}:]+)").Select(m => m.Groups[1].Value).ToList();
+            foreach (var operation in path.Value.EnumerateObject().Where(o => HttpMethods.Contains(o.Name)))
+            {
+                var declared = operation.Value.TryGetProperty("parameters", out var parameters)
+                    ? parameters.EnumerateArray()
+                        .Where(p => p.GetProperty("in").GetString() == "path")
+                        .Select(p => p.GetProperty("name").GetString())
+                        .ToHashSet()
+                    : [];
+                missing.AddRange(names.Where(n => !declared.Contains(n)).Select(n => $"{operation.Name.ToUpperInvariant()} {path.Name}: {n}"));
+            }
+        }
+
+        missing.ShouldBeEmpty("client generators reject a path whose parameters are not declared");
+    }
+
     private static bool HasExample(JsonElement schema, JsonElement schemas)
     {
         if (schema.TryGetProperty("examples", out _))

@@ -99,21 +99,28 @@ internal sealed class ListTicketsHandler(IAppDbContext db, ITicketSearch search)
             tickets = tickets.Where(t => t.Tags.Contains(tag));
         }
 
+        // Searching for "42" or "#42" also matches text that mentions 42; ticket #42 itself comes first.
+        var exactNumber = int.TryParse(
+            query.Search?.Trim().TrimStart('#'), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : (int?)null;
+        var ordered = tickets.OrderByDescending(t => exactNumber != null && t.Number == exactNumber);
+
         tickets = Paging.ParseSort(query.Sort, "-lastactivityat") switch
         {
-            ("number", false) => tickets.OrderBy(t => t.Number),
-            ("number", true) => tickets.OrderByDescending(t => t.Number),
-            ("createdat", false) => tickets.OrderBy(t => t.CreatedAt),
-            ("createdat", true) => tickets.OrderByDescending(t => t.CreatedAt),
-            ("priority", false) => tickets.OrderBy(t => t.Priority).ThenByDescending(t => t.LastActivityAt),
-            ("priority", true) => tickets.OrderByDescending(t => t.Priority).ThenByDescending(t => t.LastActivityAt),
-            ("lastactivityat", false) => tickets.OrderBy(t => t.LastActivityAt),
-            ("due", _) => tickets
-                .OrderBy(t => t.ResolutionDueAt == null && t.FirstResponseDueAt == null)
+            ("number", false) => ordered.ThenBy(t => t.Number),
+            ("number", true) => ordered.ThenByDescending(t => t.Number),
+            ("createdat", false) => ordered.ThenBy(t => t.CreatedAt),
+            ("createdat", true) => ordered.ThenByDescending(t => t.CreatedAt),
+            ("priority", false) => ordered.ThenBy(t => t.Priority).ThenByDescending(t => t.LastActivityAt),
+            ("priority", true) => ordered.ThenByDescending(t => t.Priority).ThenByDescending(t => t.LastActivityAt),
+            ("lastactivityat", false) => ordered.ThenBy(t => t.LastActivityAt),
+            ("due", _) => ordered
+                .ThenBy(t => t.ResolutionDueAt == null && t.FirstResponseDueAt == null)
                 .ThenBy(t => t.FirstRespondedAt == null && t.FirstResponseDueAt != null && t.FirstResponseDueAt < t.ResolutionDueAt
                     ? t.FirstResponseDueAt
                     : t.ResolutionDueAt),
-            _ => tickets.OrderByDescending(t => t.LastActivityAt).ThenByDescending(t => t.Number),
+            _ => ordered.ThenByDescending(t => t.LastActivityAt).ThenByDescending(t => t.Number),
         };
 
         var page = await tickets.ToPagedAsync(query, cancellationToken);

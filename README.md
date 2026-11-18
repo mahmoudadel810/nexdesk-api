@@ -476,6 +476,28 @@ The audit log records every create, change and delete of workspace records: who 
 key, the system or the platform), each field's value before and after, when, and from which address.
 Secrets such as password and key hashes are never copied into it.
 
+## Mobile clients
+
+The [mobile app](https://github.com/mahmoudadel810/nexdesk-mobile) (Flutter, staff only) uses the same
+`/api/v1` endpoints as the web app, plus a few of its own:
+
+| Endpoint | What it is for |
+|----------|----------------|
+| `POST /auth/mobile/login`, `/auth/mobile/refresh`, `/auth/mobile/logout` | Sign-in with the refresh token in the body instead of a cookie; rotation and theft detection as in [Sign-in and refresh](#sign-in-and-refresh). The access token carries a `sid` claim naming the sign-in, so pushes stop when it ends. |
+| `GET /mobile/config` | The oldest app builds still supported (older ones are asked to update) and the web app's address. Anonymous. |
+| `PUT /devices/{installationId}`, `DELETE /devices/{installationId}` | Registers this install's push token, or removes it on sign-out. A token moving to another account is taken off the old one. |
+| `GET /notifications/preferences`, `PUT …` | The Push column next to In the app and Email. |
+
+Live updates reach the app over `/hubs/notifications` with WebSockets while it is in the foreground (the
+token goes in the `access_token` query parameter, read only for `/hubs`). Pushes cover the background and
+are sent by `PushDeliveryJob` through the provider set with `Push__Provider` (below). Email links to
+`/app/tickets/{id}` open in the app on phones that have it, through `/.well-known/assetlinks.json` and
+`apple-app-site-association` served by the web app.
+
+The OpenAPI document describes every endpoint with request examples, and the mobile app generates its
+client from a snapshot of it, so nullable fields and enums are described the way typed clients read them:
+a nullable enum is `oneOf [null, $ref Enum]`, and the shared enum schema never lists `null`.
+
 ## Switches for demos and load tests
 
 | Setting (environment variable) | Default | What it does |

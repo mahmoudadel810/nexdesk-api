@@ -103,6 +103,25 @@ public sealed class OpenApiDocumentTests(ApiFactory factory)
             .GetProperty("amountCents").GetProperty("type").GetString().ShouldBe("integer");
     }
 
+    [Fact]
+    public async Task Nullable_enums_carry_null_on_the_property_and_not_on_the_shared_enum()
+    {
+        var document = await factory.CreateClient().GetFromJsonAsync<JsonElement>("/openapi/v1.json");
+        var schemas = document.GetProperty("components").GetProperty("schemas");
+
+        var enumsWithNull = schemas.EnumerateObject()
+            .Where(s => s.Value.TryGetProperty("enum", out var values)
+                && values.EnumerateArray().Any(v => v.ValueKind == JsonValueKind.Null))
+            .Select(s => s.Name)
+            .ToList();
+        enumsWithNull.ShouldBeEmpty("a null value would match both branches of oneOf [null, $ref Enum]");
+
+        var branches = schemas.GetProperty("TimelineItem").GetProperty("properties").GetProperty("eventType")
+            .GetProperty("oneOf").EnumerateArray().Select(b => b.GetRawText()).ToList();
+        branches.ShouldContain(b => b.Contains("\"null\""));
+        branches.ShouldContain(b => b.Contains("#/components/schemas/TicketEventType"));
+    }
+
     private static bool HasExample(JsonElement schema, JsonElement schemas)
     {
         if (schema.TryGetProperty("examples", out _))

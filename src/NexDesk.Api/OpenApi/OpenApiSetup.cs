@@ -186,6 +186,22 @@ public static class OpenApiSetup
                 return Task.CompletedTask;
             });
 
+            // A nullable enum property is already described as oneOf [null, $ref Enum], yet the shared enum
+            // component also lists null. A null value then matches both branches, which typed clients reject.
+            options.AddDocumentTransformer((document, _, _) =>
+            {
+                foreach (var schema in document.Components?.Schemas?.Values.OfType<OpenApiSchema>() ?? [])
+                {
+                    if (schema.Enum is { Count: > 0 } values
+                        && values.Any(v => v is null || v.GetValueKind() == JsonValueKind.Null))
+                    {
+                        schema.Enum = [.. values.Where(v => v is not null && v.GetValueKind() != JsonValueKind.Null)];
+                    }
+                }
+
+                return Task.CompletedTask;
+            });
+
             options.AddOperationTransformer((operation, context, _) =>
             {
                 var requiresAuth = context.Description.ActionDescriptor.EndpointMetadata

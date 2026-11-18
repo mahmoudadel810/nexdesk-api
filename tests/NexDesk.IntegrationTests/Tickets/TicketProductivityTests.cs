@@ -46,6 +46,21 @@ public sealed class TicketProductivityTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Searching_a_number_puts_that_ticket_first_ahead_of_text_that_mentions_it()
+    {
+        var workspace = await factory.CreateWorkspaceAsync();
+        var target = await workspace.Client.CreateTicketAsync(TestTickets.NewTicket("Printer jam"));
+        var mentions = await workspace.Client.CreateTicketAsync(TestTickets.NewTicket($"Follow-up to {target.Number} please"));
+
+        var found = await workspace.Client.GetAsync<PagedResult<TicketListItem>>(
+            $"/api/v1/tickets?search={target.Number}&pageSize=1");
+
+        found.TotalCount.ShouldBe(2);
+        found.Items.ShouldHaveSingleItem().Id.ShouldBe(target.Id);
+        mentions.Number.ShouldBeGreaterThan(target.Number);
+    }
+
+    [Fact]
     public async Task A_stale_edit_is_rejected_and_the_first_writer_wins()
     {
         var workspace = await factory.CreateWorkspaceAsync();

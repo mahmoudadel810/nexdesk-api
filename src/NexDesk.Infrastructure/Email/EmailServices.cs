@@ -1,7 +1,9 @@
 using System.Collections.Frozen;
 using System.ComponentModel.DataAnnotations;
 using System.Net;
+using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Hangfire;
 using MailKit.Net.Smtp;
 using MailKit.Security;
@@ -47,7 +49,7 @@ public interface IEmailSender
 }
 
 /// <summary>Turns a template name and model into a localized HTML and plain-text email.</summary>
-public sealed class EmailTemplateRenderer
+public sealed partial class EmailTemplateRenderer
 {
     private const string ResourcePrefix = "NexDesk.Infrastructure.Email.Templates.";
 
@@ -104,7 +106,38 @@ public sealed class EmailTemplateRenderer
 
     private static string QuoteBlock(string? text) => string.IsNullOrWhiteSpace(text)
         ? string.Empty
-        : $"<blockquote dir=\"auto\" style=\"margin:16px 0;padding:12px 16px;background:#f3f5f9;border-radius:8px;white-space:pre-wrap;\">{WebUtility.HtmlEncode(text)}</blockquote>";
+        : $"<blockquote dir=\"auto\" style=\"margin:16px 0;padding:12px 16px;background:#f3f5f9;border-radius:8px;white-space:pre-wrap;\">{Linked(text)}</blockquote>";
+
+    /// <summary>
+    /// The message HTML-encoded, with its web addresses as links (such as a help article an agent linked).
+    /// Addresses are found in the plain text before encoding, so an entity is never cut in half, and only
+    /// http and https become links.
+    /// </summary>
+    private static string Linked(string text)
+    {
+        var html = new StringBuilder();
+        var cursor = 0;
+        foreach (Match match in WebAddress().Matches(text))
+        {
+            // Sentence punctuation after an address belongs to the sentence.
+            var url = match.Value.TrimEnd('.', ',', ';', ':', '!', '?', ')', ']', '}');
+            if (url.EndsWith("://", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            html.Append(WebUtility.HtmlEncode(text[cursor..match.Index]));
+            var encoded = WebUtility.HtmlEncode(url);
+            html.Append($"<a href=\"{encoded}\" style=\"color:#0b57d0;\">{encoded}</a>");
+            cursor = match.Index + url.Length;
+        }
+
+        html.Append(WebUtility.HtmlEncode(text[cursor..]));
+        return html.ToString();
+    }
+
+    [GeneratedRegex(@"https?://[^\s<>""']+", RegexOptions.IgnoreCase)]
+    private static partial Regex WebAddress();
 
     private static string Fill(string template, IReadOnlyDictionary<string, string> model, bool encode)
     {

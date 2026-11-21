@@ -53,6 +53,48 @@ public sealed class EmailTemplateRendererTests
         email.Html.ShouldContain("&lt;script&gt;");
     }
 
+    private static EmailMessage Reply(string body) => new(
+        "casey@example.test",
+        "Casey",
+        "customer-reply",
+        "en",
+        new Dictionary<string, string>
+        {
+            ["name"] = "Casey",
+            ["workspace"] = "Acme",
+            ["agent"] = "Maya",
+            ["number"] = "271",
+            ["subject"] = "Invoices",
+            ["link"] = "http://localhost:4200/portal/acme/tickets/1",
+            ["message"] = body,
+        });
+
+    [Fact]
+    public void Web_addresses_in_a_quoted_reply_are_links_and_the_rest_stays_encoded()
+    {
+        var email = _renderer.Render(Reply(
+            "See \"Download an invoice\": http://localhost:4200/portal/acme/kb/download-an-invoice?a=1&b=2. <b>Thanks</b>"));
+
+        email.Html.ShouldContain(
+            "<a href=\"http://localhost:4200/portal/acme/kb/download-an-invoice?a=1&amp;b=2\" style=\"color:#0b57d0;\">" +
+            "http://localhost:4200/portal/acme/kb/download-an-invoice?a=1&amp;b=2</a>. &lt;b&gt;Thanks&lt;/b&gt;");
+        email.Html.ShouldContain("See &quot;Download an invoice&quot;: <a ");
+        email.Text.ShouldContain("http://localhost:4200/portal/acme/kb/download-an-invoice?a=1&b=2.");
+    }
+
+    [Theory]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("data:text/html,<script>x</script>")]
+    [InlineData("https://")]
+    public void Only_web_addresses_become_links(string body)
+    {
+        var html = _renderer.Render(Reply(body)).Html;
+        var quote = html[html.IndexOf("<blockquote", StringComparison.Ordinal)..html.IndexOf("</blockquote>", StringComparison.Ordinal)];
+
+        quote.ShouldNotContain("<a ");
+        quote.ShouldNotContain("<script>");
+    }
+
     [Fact]
     public void An_unknown_language_falls_back_to_english()
     {
